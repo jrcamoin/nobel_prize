@@ -34,3 +34,11 @@ def test_rejects_invalid_smiles(client):
     )
 
     assert response.status_code == 422
+
+
+def test_missing_compound_detail_returns_404(client):
+    assert client.get("/api/compounds/999").status_code == 404
+
+
+def test_missing_model_report_returns_404(client):
+    assert client.get("/api/model-runs/999/report").status_code == 404

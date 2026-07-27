@@ -1,4 +1,4 @@
-import type { Compound, Dataset, ModelRun } from "./types";
+import type { Compound, CompoundDetail, Dataset, ModelRun } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -21,3 +21,6 @@ export const fetchDatasets = (signal?: AbortSignal) =>
 
 export const fetchModelRuns = (signal?: AbortSignal) =>
   get<ModelRun[]>("/api/model-runs", signal);
+
+export const fetchCompound = (id: number, signal?: AbortSignal) =>
+  get<CompoundDetail>(`/api/compounds/${id}`, signal);

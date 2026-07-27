@@ -26,6 +26,20 @@ class CompoundRead(CompoundCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MeasurementRead(BaseModel):
+    standard_type: str
+    relation: str | None
+    value: float
+    units: str
+    active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CompoundDetail(CompoundRead):
+    measurements: list[MeasurementRead]
+
+
 class DatasetRead(BaseModel):
     id: int
     name: str

@@ -10,7 +10,7 @@ migrate:
 	alembic upgrade head
 
 data:
-	python backend/scripts/download_chembl.py --limit 500
+	python backend/scripts/download_chembl.py --limit 1000
 
 benchmark:
 	python backend/scripts/run_benchmark.py data/raw/chembl_ab_mic.csv

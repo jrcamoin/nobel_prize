@@ -15,7 +15,7 @@ def _json(url: str) -> dict[str, Any]:
         return json.load(response)
 
 
-def download_chembl_mic(output: Path, limit: int = 500) -> Path:
+def download_chembl_mic(output: Path, limit: int = 1000) -> Path:
     query = {
         "target_organism": "Acinetobacter baumannii",
         "standard_type": "MIC",

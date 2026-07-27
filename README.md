@@ -10,7 +10,7 @@ drug-discovery system and must not be used for clinical decisions.
 - ChEMBL MIC downloader for *Acinetobacter baumannii*
 - Dataset manifests containing the exact query, source URL, license, record count, and SHA-256
 - Assay, measurement, model-run, prediction, and experiment provenance
-- Morgan fingerprint logistic-regression baseline with scaffold-group splitting
+- Morgan fingerprint logistic-regression and random-forest baselines with a majority-class control
 - Average precision, ROC AUC, Brier score, calibration bins, class counts, and overlap checks
 - Alembic migrations, PostgreSQL/SQLite support, containers, API tests, UI tests, and CI
 
@@ -34,9 +34,14 @@ make web
 API documentation is at `http://localhost:8000/docs`; the application is at
 `http://localhost:5173`.
 
+Set `API_WRITE_KEY` to require an `X-API-Key` header for mutation endpoints.
+Read-only scientific evidence remains accessible for review and reproducibility.
+Model evidence packages can be exported from
+`GET /api/model-runs/{run_id}/report`.
+
 ## Reproducible benchmark
 
-Download a bounded, licensed ChEMBL dataset:
+Download up to 1,000 licensed ChEMBL MIC records:
 
 ```bash
 make data
@@ -54,8 +59,13 @@ make benchmark
 ```
 
 MIC values in `ug/mL` and `uM` are normalized to `ug/mL`; other units are
-excluded. The initial activity definition is `MIC <= 32 ug/mL`. This is an
+excluded. Censored relations are interpreted conservatively; ambiguous
+measurements are excluded. The initial activity definition is `MIC <= 32 ug/mL`. This is an
 explicit benchmark convention, not a universal biological breakpoint.
+
+Every run evaluates all baseline models on the same scaffold-held-out compounds.
+The sorted holdout InChIKeys are SHA-256 hashed and stored in the model artifact
+and metrics, allowing a prospective evaluation set to be frozen before testing.
 
 ## Commands
 

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     app_name: str = "Open Antibiotic Discovery API"
     database_url: str = "sqlite:///./nobel_prize.db"
     api_cors_origins: str = "http://localhost:5173"
+    api_write_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

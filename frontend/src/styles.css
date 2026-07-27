@@ -102,7 +102,26 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
 .score-grid small, .score-grid b { display: block; }
 .score-grid small { color: #748079; font-size: 9px; text-transform: uppercase; }
 .score-grid b { margin-top: 3px; font-size: 14px; }
+.comparison-table { margin-top: 12px; border-top: 1px solid #e1e6e3; }
+.comparison-table div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #edf0ee; font-size: 11px; }
+.comparison-table span { color: #69766f; text-transform: capitalize; }
+.comparison-table b { font-size: 11px; font-variant-numeric: tabular-nums; }
+.holdout { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 9px 10px; background: #edf4f0; color: #496057; font-size: 10px; }
+.holdout code { width: auto; margin: 0; color: #365347; }
 .compact-empty { padding: 32px 18px; color: #839089; font-size: 12px; text-align: center; }
+.drawer-backdrop { position: fixed; inset: 0; z-index: 20; background: rgb(18 28 23 / 42%); }
+.detail-drawer { position: absolute; inset: 0 0 0 auto; width: min(440px, 94vw); overflow-y: auto; padding: 22px; background: #fff; box-shadow: -10px 0 35px rgb(18 28 23 / 18%); }
+.drawer-heading { display: flex; justify-content: space-between; align-items: center; padding-bottom: 18px; border-bottom: 1px solid #dce2df; }
+.detail-drawer dl { margin: 0; }
+.detail-drawer dl div { padding: 14px 0; border-bottom: 1px solid #e8ecea; }
+.detail-drawer dt { color: #748079; font-size: 10px; text-transform: uppercase; }
+.detail-drawer dd { margin: 5px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.detail-drawer dd code { width: 100%; white-space: normal; }
+.detail-drawer h3 { margin: 22px 0 10px; font-size: 13px; }
+.measurement-list > div { display: grid; grid-template-columns: 50px 1fr auto; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #e8ecea; font-size: 11px; }
+.activity { padding: 3px 5px; border-radius: 3px; }
+.activity.active { background: #e5f3eb; color: #2f6d4e; }
+.activity.inactive { background: #f3ece9; color: #855044; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 
 @media (max-width: 760px) {

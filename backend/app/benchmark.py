@@ -10,6 +10,8 @@ import numpy as np
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
 from sklearn.calibration import calibration_curve
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 from sklearn.model_selection import GroupShuffleSplit
@@ -28,6 +30,15 @@ def mic_to_ug_ml(value: float, units: str, molecular_weight: float) -> float | N
         return value
     if normalized in {"um", "umol/l", "umol.l-1"}:
         return value * molecular_weight / 1000
+    return None
+
+
+def classify_mic(value: float, relation: str | None) -> bool | None:
+    relation = (relation or "=").strip()
+    if relation in {"=", "<=", "<"}:
+        return value <= ACTIVE_MIC_UG_ML
+    if relation in {">", ">="}:
+        return False if value >= ACTIVE_MIC_UG_ML else None
     return None
 
 
@@ -58,7 +69,8 @@ def import_chembl_csv(db: Session, csv_path: Path, manifest_path: Path | None = 
             except (InvalidSmilesError, TypeError, ValueError):
                 continue
             mic = mic_to_ug_ml(value, row["standard_units"], chemistry.molecular_weight)
-            if mic is None:
+            active = classify_mic(mic, row["standard_relation"]) if mic is not None else None
+            if mic is None or active is None:
                 continue
             source_id = row["molecule_chembl_id"]
             compound = compounds.get(chemistry.inchikey)
@@ -102,7 +114,7 @@ def import_chembl_csv(db: Session, csv_path: Path, manifest_path: Path | None = 
                     relation=row["standard_relation"],
                     value=mic,
                     units="ug/mL",
-                    active=mic <= ACTIVE_MIC_UG_ML,
+                    active=active,
                 )
             )
     db.commit()
@@ -125,6 +137,19 @@ def _git_commit() -> str | None:
     return result.stdout.strip() or None
 
 
+def _metrics(y_true: np.ndarray, probabilities: np.ndarray) -> dict[str, Any]:
+    prob_true, prob_pred = calibration_curve(y_true, probabilities, n_bins=5)
+    return {
+        "average_precision": round(float(average_precision_score(y_true, probabilities)), 4),
+        "roc_auc": round(float(roc_auc_score(y_true, probabilities)), 4),
+        "brier_score": round(float(brier_score_loss(y_true, probabilities)), 4),
+        "calibration": [
+            {"predicted": round(float(predicted), 4), "observed": round(float(observed), 4)}
+            for observed, predicted in zip(prob_true, prob_pred, strict=True)
+        ],
+    }
+
+
 def train_baseline(db: Session, dataset_id: int, artifact_dir: Path, seed: int = 17) -> ModelRun:
     rows = db.execute(
         select(Compound, Measurement.active)
@@ -132,12 +157,18 @@ def train_baseline(db: Session, dataset_id: int, artifact_dir: Path, seed: int =
         .join(Assay)
         .where(Assay.dataset_id == dataset_id)
     ).all()
-    # Collapse replicate assays conservatively: any active observation marks the compound active.
-    collapsed: dict[int, tuple[Compound, bool]] = {}
+    replicates: dict[int, tuple[Compound, list[bool]]] = {}
     for compound, active in rows:
-        previous = collapsed.get(compound.id)
-        collapsed[compound.id] = (compound, bool(active or (previous and previous[1])))
-    samples = list(collapsed.values())
+        entry = replicates.setdefault(compound.id, (compound, []))
+        entry[1].append(bool(active))
+    samples: list[tuple[Compound, bool]] = []
+    disputed = 0
+    for compound, labels in replicates.values():
+        active_count = sum(labels)
+        if active_count * 2 == len(labels):
+            disputed += 1
+            continue
+        samples.append((compound, active_count * 2 > len(labels)))
     if len(samples) < 20 or len({label for _, label in samples}) < 2:
         raise ValueError("At least 20 compounds spanning both classes are required")
     x = np.stack([_fingerprint(compound.canonical_smiles) for compound, _ in samples])
@@ -152,34 +183,50 @@ def train_baseline(db: Session, dataset_id: int, artifact_dir: Path, seed: int =
     train_idx, val_idx = train_val_idx[train_rel], train_val_idx[val_rel]
     if len(set(y[test_idx])) < 2:
         raise ValueError("Scaffold test split contains one class; increase the dataset size")
-    model = LogisticRegression(class_weight="balanced", C=1.0, max_iter=2000, random_state=seed)
-    model.fit(x[train_idx], y[train_idx])
-    probabilities = model.predict_proba(x[test_idx])[:, 1]
-    prob_true, prob_pred = calibration_curve(y[test_idx], probabilities, n_bins=5)
+    models = {
+        "logistic_regression": LogisticRegression(
+            class_weight="balanced", C=1.0, max_iter=2000, random_state=seed
+        ),
+        "random_forest": RandomForestClassifier(
+            n_estimators=300, class_weight="balanced", min_samples_leaf=2, random_state=seed
+        ),
+        "majority_class": DummyClassifier(strategy="prior", random_state=seed),
+    }
+    comparisons: dict[str, Any] = {}
+    for model_name, candidate in models.items():
+        candidate.fit(x[train_idx], y[train_idx])
+        comparisons[model_name] = _metrics(y[test_idx], candidate.predict_proba(x[test_idx])[:, 1])
+    model = models["logistic_regression"]
+    holdout_ids = sorted(samples[index][0].inchikey for index in test_idx)
+    holdout_sha256 = hashlib.sha256("\n".join(holdout_ids).encode()).hexdigest()
     metrics: dict[str, Any] = {
-        "average_precision": round(float(average_precision_score(y[test_idx], probabilities)), 4),
-        "roc_auc": round(float(roc_auc_score(y[test_idx], probabilities)), 4),
-        "brier_score": round(float(brier_score_loss(y[test_idx], probabilities)), 4),
-        "calibration": [
-            {"predicted": round(float(predicted), 4), "observed": round(float(observed), 4)}
-            for observed, predicted in zip(prob_true, prob_pred, strict=True)
-        ],
+        **comparisons["logistic_regression"],
+        "comparisons": comparisons,
         "counts": {
             "all": len(samples),
             "train": len(train_idx),
             "validation": len(val_idx),
             "test": len(test_idx),
             "active": int(y.sum()),
+            "replicate_disputes_excluded": disputed,
         },
         "scaffold_overlap": {
             "train_test": len(set(groups[train_idx]) & set(groups[test_idx])),
             "validation_test": len(set(groups[val_idx]) & set(groups[test_idx])),
         },
         "activity_definition": f"MIC <= {ACTIVE_MIC_UG_ML:g} ug/mL",
+        "prospective_holdout": {
+            "sha256": holdout_sha256,
+            "compound_count": len(holdout_ids),
+            "frozen": True,
+        },
     }
     artifact_dir.mkdir(parents=True, exist_ok=True)
     artifact = artifact_dir / f"baseline-dataset-{dataset_id}.joblib"
-    joblib.dump({"model": model, "metrics": metrics, "seed": seed}, artifact)
+    joblib.dump(
+        {"model": model, "metrics": metrics, "seed": seed, "holdout_inchikeys": holdout_ids},
+        artifact,
+    )
     digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
     run = ModelRun(
         dataset_id=dataset_id,

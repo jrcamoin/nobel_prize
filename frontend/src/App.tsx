@@ -8,9 +8,10 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  X,
 } from "lucide-react";
-import { fetchCompounds, fetchDatasets, fetchModelRuns } from "./api";
-import type { Compound, Dataset, ModelRun } from "./types";
+import { fetchCompound, fetchCompounds, fetchDatasets, fetchModelRuns } from "./api";
+import type { Compound, CompoundDetail, Dataset, ModelRun } from "./types";
 
 function Percent({ value }: { value: number }) {
   return <span className="numeric">{Math.round(value * 100)}%</span>;
@@ -20,6 +21,7 @@ export default function App() {
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [modelRuns, setModelRuns] = useState<ModelRun[]>([]);
+  const [selected, setSelected] = useState<CompoundDetail | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +58,10 @@ export default function App() {
       ),
     );
   }, [compounds, query]);
+
+  const openCompound = (id: number) => {
+    fetchCompound(id).then(setSelected).catch((reason: Error) => setError(reason.message));
+  };
 
   return (
     <div className="app-shell">
@@ -142,7 +148,7 @@ export default function App() {
                       </td>
                       <td><span className="badge">{compound.status}</span></td>
                       <td>{compound.evidence_source}</td>
-                      <td><button className="row-action" title={`Open ${compound.name}`}><ChevronRight size={18} /></button></td>
+                      <td><button className="row-action" title={`Open ${compound.name}`} onClick={() => openCompound(compound.id)}><ChevronRight size={18} /></button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -172,10 +178,54 @@ export default function App() {
                   <div><small>ROC AUC</small><b>{run.metrics.roc_auc?.toFixed(3) ?? "—"}</b></div>
                   <div><small>Brier</small><b>{run.metrics.brier_score?.toFixed(3) ?? "—"}</b></div>
                 </div>
+                {run.metrics.comparisons && (
+                  <div className="comparison-table">
+                    {Object.entries(run.metrics.comparisons).map(([name, scores]) => (
+                      <div key={name}>
+                        <span>{name.replaceAll("_", " ")}</span>
+                        <b>{scores.average_precision.toFixed(3)} PR AUC</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {run.metrics.prospective_holdout && (
+                  <div className="holdout">
+                    <span>Frozen holdout · {run.metrics.prospective_holdout.compound_count} compounds</span>
+                    <code title={run.metrics.prospective_holdout.sha256}>
+                      {run.metrics.prospective_holdout.sha256.slice(0, 16)}
+                    </code>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </section>
+        {selected && (
+          <div className="drawer-backdrop" role="presentation" onClick={() => setSelected(null)}>
+            <aside className="detail-drawer" role="dialog" aria-modal="true" aria-label={`${selected.name} evidence`} onClick={(event) => event.stopPropagation()}>
+              <div className="drawer-heading">
+                <div><p className="eyebrow">Compound evidence</p><h2>{selected.name}</h2></div>
+                <button className="icon-button" aria-label="Close evidence" onClick={() => setSelected(null)}><X size={18} /></button>
+              </div>
+              <dl>
+                <div><dt>InChIKey</dt><dd>{selected.inchikey}</dd></div>
+                <div><dt>Molecular weight</dt><dd>{selected.molecular_weight.toFixed(2)} g/mol</dd></div>
+                <div><dt>Canonical SMILES</dt><dd><code>{selected.canonical_smiles}</code></dd></div>
+                <div><dt>Source</dt><dd>{selected.evidence_source}</dd></div>
+              </dl>
+              <h3>Measurements</h3>
+              <div className="measurement-list">
+                {selected.measurements.map((measurement, index) => (
+                  <div key={`${measurement.value}-${index}`}>
+                    <span>{measurement.standard_type}</span>
+                    <strong>{measurement.relation ?? "="} {measurement.value.toFixed(2)} {measurement.units}</strong>
+                    <span className={measurement.active ? "activity active" : "activity inactive"}>{measurement.active ? "Active" : "Inactive"}</span>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </div>
+        )}
       </main>
     </div>
   );
