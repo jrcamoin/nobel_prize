@@ -9,8 +9,8 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
-import { fetchCompounds } from "./api";
-import type { Compound } from "./types";
+import { fetchCompounds, fetchDatasets, fetchModelRuns } from "./api";
+import type { Compound, Dataset, ModelRun } from "./types";
 
 function Percent({ value }: { value: number }) {
   return <span className="numeric">{Math.round(value * 100)}%</span>;
@@ -18,6 +18,8 @@ function Percent({ value }: { value: number }) {
 
 export default function App() {
   const [compounds, setCompounds] = useState<Compound[]>([]);
+  const [datasets, setDatasets] = useState<Dataset[]>([]);
+  const [modelRuns, setModelRuns] = useState<ModelRun[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +28,16 @@ export default function App() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    fetchCompounds(controller.signal)
-      .then(setCompounds)
+    Promise.all([
+      fetchCompounds(controller.signal),
+      fetchDatasets(controller.signal),
+      fetchModelRuns(controller.signal),
+    ])
+      .then(([nextCompounds, nextDatasets, nextRuns]) => {
+        setCompounds(nextCompounds);
+        setDatasets(nextDatasets);
+        setModelRuns(nextRuns);
+      })
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
       })
@@ -123,12 +133,12 @@ export default function App() {
                         <span className="rank">{String(index + 1).padStart(2, "0")}</span>
                         <span><strong>{compound.name}</strong><code>{compound.smiles}</code></span>
                       </td>
-                      <td><Percent value={compound.activity_score} /></td>
+                      <td>{compound.activity_score === null ? "Unscored" : <Percent value={compound.activity_score} />}</td>
                       <td>
                         <div className="confidence">
-                          <span style={{ width: `${compound.confidence * 100}%` }} />
+                          <span style={{ width: `${(compound.confidence ?? 0) * 100}%` }} />
                         </div>
-                        <Percent value={compound.confidence} />
+                        {compound.confidence === null ? "—" : <Percent value={compound.confidence} />}
                       </td>
                       <td><span className="badge">{compound.status}</span></td>
                       <td>{compound.evidence_source}</td>
@@ -140,6 +150,31 @@ export default function App() {
               {visible.length === 0 && <div className="state">No candidates match this search.</div>}
             </div>
           )}
+        </section>
+
+        <section className="evidence-grid" aria-label="Scientific provenance">
+          <div className="evidence-panel" id="datasets">
+            <div className="panel-heading"><Database size={17} /><div><h2>Datasets</h2><p>Immutable source manifests</p></div></div>
+            {datasets.length === 0 ? <div className="compact-empty">No dataset imported</div> : datasets.map((dataset) => (
+              <div className="evidence-row" key={dataset.id}>
+                <div><strong>{dataset.name}</strong><span>{dataset.record_count} records · {dataset.license}</span></div>
+                <code title={dataset.sha256}>{dataset.sha256.slice(0, 12)}</code>
+              </div>
+            ))}
+          </div>
+          <div className="evidence-panel" id="models">
+            <div className="panel-heading"><ShieldCheck size={17} /><div><h2>Model runs</h2><p>Versioned benchmark evidence</p></div></div>
+            {modelRuns.length === 0 ? <div className="compact-empty">No benchmark completed</div> : modelRuns.map((run) => (
+              <div className="model-summary" key={run.id}>
+                <strong>{run.name}</strong><span>{run.split_strategy}</span>
+                <div className="score-grid">
+                  <div><small>PR AUC</small><b>{run.metrics.average_precision?.toFixed(3) ?? "—"}</b></div>
+                  <div><small>ROC AUC</small><b>{run.metrics.roc_auc?.toFixed(3) ?? "—"}</b></div>
+                  <div><small>Brier</small><b>{run.metrics.brier_score?.toFixed(3) ?? "—"}</b></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </section>
       </main>
     </div>

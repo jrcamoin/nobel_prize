@@ -81,6 +81,28 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
 .state { padding: 50px 20px; text-align: center; color: #748079; }
 .state.error { display: grid; gap: 5px; color: #8b3d32; }
 .state.error span { font-size: 13px; }
+.evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 0 38px 38px; }
+.evidence-panel { background: #fff; border: 1px solid #dce2df; border-radius: 7px; overflow: hidden; }
+.panel-heading { display: flex; gap: 10px; align-items: center; padding: 16px 18px; border-bottom: 1px solid #e1e6e3; }
+.panel-heading svg { color: #51856d; }
+.panel-heading h2 { margin-bottom: 2px; }
+.panel-heading p { margin: 0; color: #75817b; font-size: 11px; }
+.evidence-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px 18px; border-bottom: 1px solid #e8ecea; }
+.evidence-row strong, .evidence-row span { display: block; }
+.evidence-row strong { font-size: 13px; }
+.evidence-row span { margin-top: 3px; color: #748079; font-size: 11px; }
+.evidence-row code { width: auto; color: #57645e; }
+.model-summary { padding: 14px 18px; }
+.model-summary > strong, .model-summary > span { display: block; }
+.model-summary > strong { font-size: 13px; }
+.model-summary > span { margin: 3px 0 14px; color: #748079; font-size: 11px; }
+.score-grid { display: grid; grid-template-columns: repeat(3, 1fr); background: #f5f7f6; border: 1px solid #e1e6e3; }
+.score-grid div { padding: 9px 10px; border-right: 1px solid #e1e6e3; }
+.score-grid div:last-child { border: 0; }
+.score-grid small, .score-grid b { display: block; }
+.score-grid small { color: #748079; font-size: 9px; text-transform: uppercase; }
+.score-grid b { margin-top: 3px; font-size: 14px; }
+.compact-empty { padding: 32px 18px; color: #839089; font-size: 12px; text-align: center; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 
 @media (max-width: 760px) {
@@ -99,7 +121,7 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
   .metrics > div:nth-child(2) { border-right: 0; }
   .metrics > div:last-child { grid-column: 1 / -1; padding-left: 0; border-top: 1px solid #e4e9e6; }
   .workspace { margin: 20px; }
+  .evidence-grid { grid-template-columns: 1fr; margin: 0 20px 20px; }
   .toolbar { align-items: stretch; flex-direction: column; }
   .search { width: 100%; }
 }
-

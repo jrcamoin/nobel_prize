@@ -1,61 +1,77 @@
 # Open Antibiotic Discovery
 
-An initial research workspace for ranking antimicrobial compounds with traceable
-evidence and explicit uncertainty. This repository is a foundation, not a
-validated drug-discovery system.
+A reproducible research workspace for ranking antimicrobial compounds with
+traceable measurements, model runs, and uncertainty. It is not a validated
+drug-discovery system and must not be used for clinical decisions.
 
-## Architecture
+## What is implemented
 
-- `backend/`: FastAPI, SQLAlchemy, Pydantic, and pytest
-- `frontend/`: React, TypeScript, Vite, and Vitest
-- `docker-compose.yml`: PostgreSQL for development
+- RDKit SMILES validation, canonicalization, InChIKey, molecular weight, and Murcko scaffold
+- ChEMBL MIC downloader for *Acinetobacter baumannii*
+- Dataset manifests containing the exact query, source URL, license, record count, and SHA-256
+- Assay, measurement, model-run, prediction, and experiment provenance
+- Morgan fingerprint logistic-regression baseline with scaffold-group splitting
+- Average precision, ROC AUC, Brier score, calibration bins, class counts, and overlap checks
+- Alembic migrations, PostgreSQL/SQLite support, containers, API tests, UI tests, and CI
 
-SQLite is the backend default so the first run does not require Docker.
-
-## Quick start
-
-### Backend
+## Local setup
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e "./backend[dev]"
-uvicorn app.main:app --app-dir backend --reload
+npm install --prefix frontend
+alembic upgrade head
 ```
 
-The API is available at `http://localhost:8000`; interactive documentation is
-at `http://localhost:8000/docs`.
-
-### Frontend
+Run the services in separate terminals:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+make api
+make web
 ```
 
-Open `http://localhost:5173`.
+API documentation is at `http://localhost:8000/docs`; the application is at
+`http://localhost:5173`.
 
-### Tests
+## Reproducible benchmark
+
+Download a bounded, licensed ChEMBL dataset:
 
 ```bash
-pytest backend/tests
-cd frontend && npm test
+make data
 ```
 
-## PostgreSQL
+This writes `data/raw/chembl_ab_mic.csv` and a manifest beside it. Raw data is
+ignored by Git because it is reproducibly fetched and content-addressed.
+ChEMBL is distributed under CC BY-SA 3.0; cite the current ChEMBL publication
+when publishing derived work.
+
+Import, scaffold-split, train, evaluate, and record the run:
 
 ```bash
-docker compose up -d db
-export DATABASE_URL=postgresql+psycopg://antibiotics:antibiotics@localhost:5432/antibiotics
+make benchmark
 ```
 
-The API creates its initial tables on startup. Add Alembic migrations before
-the schema begins changing in shared environments.
+MIC values in `ug/mL` and `uM` are normalized to `ug/mL`; other units are
+excluded. The initial activity definition is `MIC <= 32 ug/mL`. This is an
+explicit benchmark convention, not a universal biological breakpoint.
 
-## Scientific boundary
+## Commands
 
-Scores in the seed data are illustrative. Predictions must retain dataset,
-model, split, calibration, and experiment provenance before they can support
-scientific decisions.
+```bash
+make migrate   # apply database migrations
+make api-test  # backend tests
+make web-test  # frontend tests
+docker compose up --build  # PostgreSQL + API + production web at :8080
+```
+
+## Scientific limitations
+
+Scaffold splits are more demanding than random splits but can still
+overestimate prospective virtual-screening performance. Assay heterogeneity,
+replicate disagreement, censoring relations, strain differences, and class
+imbalance require deeper curation before publishing results. A retrospective
+metric is not evidence that a compound works; the next meaningful milestone is
+a preregistered prediction evaluated by an independent laboratory.
 
