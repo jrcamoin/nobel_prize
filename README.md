@@ -74,4 +74,3 @@ replicate disagreement, censoring relations, strain differences, and class
 imbalance require deeper curation before publishing results. A retrospective
 metric is not evidence that a compound works; the next meaningful milestone is
 a preregistered prediction evaluated by an independent laboratory.
-
