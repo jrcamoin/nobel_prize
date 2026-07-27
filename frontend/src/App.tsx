@@ -232,9 +232,15 @@ export default function App() {
               <h3>Candidate pools</h3>
               {candidatePools.length === 0 ? <div className="compact-empty">No pool preregistered</div> : candidatePools.map((pool) => {
                 const passed = pool.candidates.filter((candidate) => candidate.passed_screen).length;
+                const selectedCount = pool.candidates.filter((candidate) => candidate.selected).length;
+                const available = pool.candidates.filter((candidate) => candidate.availability_status === "confirmed").length;
                 return (
                   <div className="pool-row" key={pool.id}>
-                    <div><strong>{pool.name}</strong><span>{passed}/{pool.candidates.length} passed screening</span></div>
+                    <div>
+                      <strong>{pool.name}</strong>
+                      <span>{passed}/{pool.candidates.length} qualified · {selectedCount} selected · {available} availability confirmed</span>
+                      <span>{pool.protocol ? `${pool.protocol.strain} · ${pool.protocol.method}` : "Laboratory protocol required"}</span>
+                    </div>
                     <div className="pool-state">
                       <span className={pool.locked_at ? "locked" : "draft"}>{pool.locked_at ? "Locked" : "Draft"}</span>
                       <code title={pool.content_sha256}>{pool.content_sha256.slice(0, 12)}</code>

@@ -1,3 +1,5 @@
+import hashlib
+import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,13 +22,15 @@ from .models import (
     Dataset,
     Experiment,
     Job,
+    LaboratoryProtocol,
     ModelRun,
     PoolCandidate,
     Prediction,
     Preregistration,
 )
-from .prospective import create_pool, preregister_pool
+from .prospective import create_pool, preregister_pool, qualify_pool
 from .schemas import (
+    CandidateEvidenceUpdate,
     CandidatePoolCreate,
     CompoundCreate,
     CompoundDetail,
@@ -34,6 +38,7 @@ from .schemas import (
     DatasetRead,
     ExperimentCreate,
     HealthRead,
+    LaboratoryProtocolCreate,
     ModelRunRead,
 )
 
@@ -186,6 +191,7 @@ def _pool_payload(db: Session, pool: CandidatePool) -> dict:
         .order_by(PoolCandidate.rank)
     ).all()
     registration = db.scalar(select(Preregistration).where(Preregistration.pool_id == pool.id))
+    protocol = db.scalar(select(LaboratoryProtocol).where(LaboratoryProtocol.pool_id == pool.id))
     return {
         "id": pool.id,
         "name": pool.name,
@@ -203,8 +209,20 @@ def _pool_payload(db: Session, pool: CandidatePool) -> dict:
             if registration
             else None
         ),
+        "protocol": (
+            {
+                "id": protocol.id,
+                "strain": protocol.strain,
+                "method": protocol.method,
+                "laboratory": protocol.laboratory,
+                "protocol_sha256": protocol.protocol_sha256,
+            }
+            if protocol
+            else None
+        ),
         "candidates": [
             {
+                "id": item.id,
                 "compound_id": compound.id,
                 "name": compound.name,
                 "inchikey": compound.inchikey,
@@ -212,6 +230,12 @@ def _pool_payload(db: Session, pool: CandidatePool) -> dict:
                 "passed_screen": item.passed_screen,
                 "rejection_reasons": item.rejection_reasons,
                 "properties": item.properties,
+                "selected": item.selected,
+                "availability_status": item.availability_status,
+                "vendor": item.vendor,
+                "catalog_number": item.catalog_number,
+                "price": item.price,
+                "purity": item.purity,
             }
             for item, compound in candidates
         ],
@@ -233,6 +257,83 @@ def create_candidate_pool(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _pool_payload(db, pool)
+
+
+@app.post("/api/candidate-pools/{pool_id}/qualify", tags=["prospective"])
+def qualify_candidate_pool(pool_id: int, db: DatabaseSession, _: WriteAccess) -> dict:
+    try:
+        pool = qualify_pool(db, pool_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _pool_payload(db, pool)
+
+
+@app.patch("/api/candidate-pools/{pool_id}/candidates/{candidate_id}", tags=["prospective"])
+def update_candidate_evidence(
+    pool_id: int,
+    candidate_id: int,
+    payload: CandidateEvidenceUpdate,
+    db: DatabaseSession,
+    _: WriteAccess,
+) -> dict:
+    pool = db.get(CandidatePool, pool_id)
+    if pool is None or pool.locked_at:
+        raise HTTPException(status_code=422, detail="Candidate pool not editable")
+    candidate = db.scalar(
+        select(PoolCandidate).where(
+            PoolCandidate.pool_id == pool_id, PoolCandidate.id == candidate_id
+        )
+    )
+    if candidate is None:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if payload.availability_status == "confirmed" and not (
+        payload.vendor and payload.catalog_number and payload.purity is not None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Confirmed availability requires vendor, catalog number, and purity",
+        )
+    candidate.selected = payload.selected
+    candidate.availability_status = payload.availability_status
+    candidate.vendor = payload.vendor
+    candidate.catalog_number = payload.catalog_number
+    candidate.price = payload.price
+    candidate.purity = payload.purity
+    candidate.properties = {
+        **candidate.properties,
+        "cytotoxicity_evidence": payload.cytotoxicity_evidence or "not_available",
+        "cytotoxicity_source": payload.cytotoxicity_source,
+    }
+    db.commit()
+    return _pool_payload(db, pool)
+
+
+@app.put("/api/candidate-pools/{pool_id}/protocol", tags=["prospective"])
+def set_laboratory_protocol(
+    pool_id: int,
+    payload: LaboratoryProtocolCreate,
+    db: DatabaseSession,
+    _: WriteAccess,
+) -> dict:
+    pool = db.get(CandidatePool, pool_id)
+    if pool is None or pool.locked_at:
+        raise HTTPException(status_code=422, detail="Candidate pool not editable")
+    if payload.concentration_max <= payload.concentration_min:
+        raise HTTPException(status_code=422, detail="Maximum concentration must exceed minimum")
+    values = payload.model_dump()
+    encoded = json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
+    digest = hashlib.sha256(encoded).hexdigest()
+    protocol = db.scalar(select(LaboratoryProtocol).where(LaboratoryProtocol.pool_id == pool_id))
+    if protocol is None:
+        protocol = LaboratoryProtocol(pool_id=pool_id, **values, protocol_sha256=digest)
+        db.add(protocol)
+    else:
+        for key, value in values.items():
+            setattr(protocol, key, value)
+        protocol.protocol_sha256 = digest
+    db.commit()
+    db.refresh(protocol)
+    return {"id": protocol.id, "pool_id": pool_id, **values, "protocol_sha256": digest}
 
 
 @app.post("/api/candidate-pools/{pool_id}/preregister", tags=["prospective"])

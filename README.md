@@ -86,10 +86,18 @@ and metrics, allowing a prospective evaluation set to be frozen before testing.
 
 1. Create a candidate pool with `POST /api/candidate-pools`.
 2. Review recorded property bounds, PAINS alerts, ranks, and rejections.
-3. Configure the signing secret and call
+   Qualification also records maximum Tanimoto similarity to the training set
+   and active compounds, reactive-group alerts, solubility risk, and whether
+   cytotoxicity evidence is available.
+3. Confirm vendor, catalog number, purity, cost, and cytotoxicity source for
+   each selected compound through the candidate evidence endpoint.
+4. Store the exact strain, MIC method, medium, concentration range, controls,
+   replicates, blinding, laboratory, and success criterion using
+   `PUT /api/candidate-pools/{pool_id}/protocol`.
+5. Configure the signing secret and call
    `POST /api/candidate-pools/{pool_id}/preregister`.
-4. Record laboratory work with `POST /api/experiments`.
-5. Queue retraining with `POST /api/jobs/train/{dataset_id}` only after the
+6. Record laboratory work with `POST /api/experiments`.
+7. Queue retraining with `POST /api/jobs/train/{dataset_id}` only after the
    prospective results are locked.
 
 Preregistered pools cannot be edited through the API. A new hypothesis requires

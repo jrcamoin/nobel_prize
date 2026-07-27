@@ -46,3 +46,7 @@ def test_missing_model_report_returns_404(client):
 
 def test_training_job_requires_dataset(client):
     assert client.post("/api/jobs/train/999").status_code == 404
+
+
+def test_qualification_requires_pool(client):
+    assert client.post("/api/candidate-pools/999/qualify").status_code == 422

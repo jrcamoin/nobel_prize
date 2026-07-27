@@ -49,9 +49,18 @@ export type CandidatePool = {
   preregistration: {
     id: number; report_sha256: string; signature: string; signed_at: string;
   } | null;
+  protocol: {
+    id: number; strain: string; method: string; laboratory: string; protocol_sha256: string;
+  } | null;
   candidates: Array<{
-    compound_id: number; name: string; rank: number; passed_screen: boolean;
+    id: number; compound_id: number; name: string; rank: number; passed_screen: boolean;
     rejection_reasons: string[];
+    selected: boolean; availability_status: string; vendor: string | null;
+    catalog_number: string | null; price: number | null; purity: number | null;
+    properties: {
+      max_training_similarity?: number; max_active_similarity?: number;
+      cytotoxicity_evidence?: string; reactive_alerts?: string[];
+    };
   }>;
 };
 

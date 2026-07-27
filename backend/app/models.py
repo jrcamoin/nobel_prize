@@ -164,6 +164,12 @@ class PoolCandidate(Base):
     rejection_reasons: Mapped[list[str]] = mapped_column(JSON)
     properties: Mapped[dict[str, Any]] = mapped_column(JSON)
     rank: Mapped[int | None] = mapped_column(Integer)
+    selected: Mapped[bool] = mapped_column(Boolean, default=False)
+    availability_status: Mapped[str] = mapped_column(String(40), default="unverified")
+    vendor: Mapped[str | None] = mapped_column(String(160))
+    catalog_number: Mapped[str | None] = mapped_column(String(120))
+    price: Mapped[float | None] = mapped_column(Float)
+    purity: Mapped[float | None] = mapped_column(Float)
     pool: Mapped[CandidatePool] = relationship(back_populates="candidates")
     compound: Mapped[Compound] = relationship()
 
@@ -177,6 +183,28 @@ class Preregistration(Base):
     report_sha256: Mapped[str] = mapped_column(String(64), unique=True)
     signature: Mapped[str] = mapped_column(String(64))
     signed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class LaboratoryProtocol(Base):
+    __tablename__ = "laboratory_protocols"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pool_id: Mapped[int] = mapped_column(ForeignKey("candidate_pools.id"), unique=True)
+    organism: Mapped[str] = mapped_column(String(160))
+    strain: Mapped[str] = mapped_column(String(160))
+    method: Mapped[str] = mapped_column(String(120))
+    medium: Mapped[str] = mapped_column(String(120))
+    concentration_min: Mapped[float] = mapped_column(Float)
+    concentration_max: Mapped[float] = mapped_column(Float)
+    concentration_unit: Mapped[str] = mapped_column(String(40))
+    replicates: Mapped[int] = mapped_column(Integer)
+    positive_control: Mapped[str] = mapped_column(String(160))
+    negative_control: Mapped[str] = mapped_column(String(160))
+    blinded: Mapped[bool] = mapped_column(Boolean)
+    success_criterion: Mapped[str] = mapped_column(Text)
+    laboratory: Mapped[str] = mapped_column(String(200))
+    protocol_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class Job(Base):

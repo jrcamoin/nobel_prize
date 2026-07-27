@@ -85,3 +85,30 @@ class ExperimentCreate(BaseModel):
     result: dict[str, Any] | None = None
     performed_by: str | None = None
     performed_at: datetime | None = None
+
+
+class CandidateEvidenceUpdate(BaseModel):
+    selected: bool
+    availability_status: str = Field(pattern="^(unverified|confirmed|unavailable)$")
+    vendor: str | None = None
+    catalog_number: str | None = None
+    price: float | None = Field(default=None, ge=0)
+    purity: float | None = Field(default=None, ge=0, le=100)
+    cytotoxicity_evidence: str | None = None
+    cytotoxicity_source: str | None = None
+
+
+class LaboratoryProtocolCreate(BaseModel):
+    organism: str = Field(min_length=1, max_length=160)
+    strain: str = Field(min_length=1, max_length=160)
+    method: str = Field(min_length=1, max_length=120)
+    medium: str = Field(min_length=1, max_length=120)
+    concentration_min: float = Field(ge=0)
+    concentration_max: float = Field(gt=0)
+    concentration_unit: str = Field(min_length=1, max_length=40)
+    replicates: int = Field(ge=2, le=100)
+    positive_control: str = Field(min_length=1, max_length=160)
+    negative_control: str = Field(min_length=1, max_length=160)
+    blinded: bool
+    success_criterion: str = Field(min_length=10)
+    laboratory: str = Field(min_length=1, max_length=200)
