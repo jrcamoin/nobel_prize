@@ -1,6 +1,9 @@
 import csv
 import hashlib
 import json
+import shutil
+import zipfile
+from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -8,6 +11,10 @@ from urllib.request import urlopen
 
 CHEMBL_API = "https://www.ebi.ac.uk/chembl/api/data"
 CHEMBL_LICENSE = "CC BY-SA 3.0"
+COADD_ARCHIVE_URL = (
+    "https://db.co-add.org/javax.faces.resource/CO-ADD_r03.02-2020_CSV.zip.xhtml?ln=files"
+)
+COADD_LICENSE = "Open-access CO-ADD screening data"
 
 
 def _json(url: str) -> dict[str, Any]:
@@ -76,3 +83,31 @@ def download_chembl_mic(output: Path, limit: int = 1000) -> Path:
         encoding="utf-8",
     )
     return output
+
+
+def download_coadd(output: Path) -> Path:
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with urlopen(COADD_ARCHIVE_URL, timeout=60) as response, output.open("wb") as handle:
+        shutil.copyfileobj(response, handle)
+    digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    output.with_suffix(".manifest.json").write_text(
+        json.dumps(
+            {
+                "dataset": "CO-ADD complete screening release r03",
+                "source_url": COADD_ARCHIVE_URL,
+                "license": COADD_LICENSE,
+                "sha256": digest,
+                "archive": output.name,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return output
+
+
+def iter_coadd_dose_response(archive: Path):
+    member = "CO-ADD_DoseResponseData_r03_01-02-2020_CSV.csv"
+    with zipfile.ZipFile(archive) as bundle, bundle.open(member) as raw:
+        yield from csv.DictReader(TextIOWrapper(raw, encoding="utf-8"))

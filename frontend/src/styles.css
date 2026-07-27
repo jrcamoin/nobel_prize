@@ -122,6 +122,23 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
 .activity { padding: 3px 5px; border-radius: 3px; }
 .activity.active { background: #e5f3eb; color: #2f6d4e; }
 .activity.inactive { background: #f3ece9; color: #855044; }
+.prospective-panel { margin: 0 38px 38px; background: #fff; border: 1px solid #dce2df; border-radius: 7px; overflow: hidden; }
+.prospective-content { display: grid; grid-template-columns: 1.4fr 1fr; }
+.prospective-content > div { min-width: 0; padding: 16px 18px; }
+.prospective-content > div + div { border-left: 1px solid #e1e6e3; }
+.prospective-content h3 { margin: 0 0 10px; color: #68756f; font-size: 10px; text-transform: uppercase; }
+.pool-row, .job-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid #e8ecea; font-size: 11px; }
+.pool-row strong, .pool-row span { display: block; }
+.pool-row span { margin-top: 3px; color: #748079; }
+.pool-state { display: flex; align-items: center; gap: 8px; }
+.pool-state > span { margin: 0; padding: 3px 5px; border-radius: 3px; }
+.pool-state .locked { background: #e5f3eb; color: #2f6d4e; }
+.pool-state .draft { background: #fff4d3; color: #795e16; }
+.pool-state code { width: auto; margin: 0; }
+.job-row > span { text-transform: capitalize; }
+.job-row strong { text-transform: capitalize; }
+.job-completed { color: #2f6d4e; }
+.job-failed { color: #8b3d32; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
 
 @media (max-width: 760px) {
@@ -141,6 +158,9 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
   .metrics > div:last-child { grid-column: 1 / -1; padding-left: 0; border-top: 1px solid #e4e9e6; }
   .workspace { margin: 20px; }
   .evidence-grid { grid-template-columns: 1fr; margin: 0 20px 20px; }
+  .prospective-panel { margin: 0 20px 20px; }
+  .prospective-content { grid-template-columns: 1fr; }
+  .prospective-content > div + div { border-left: 0; border-top: 1px solid #e1e6e3; }
   .toolbar { align-items: stretch; flex-direction: column; }
   .search { width: 100%; }
 }

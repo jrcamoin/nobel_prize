@@ -129,9 +129,65 @@ class Experiment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     compound_id: Mapped[int] = mapped_column(ForeignKey("compounds.id"))
+    preregistration_id: Mapped[int | None] = mapped_column(ForeignKey("preregistrations.id"))
     protocol_uri: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(40))
     result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     performed_by: Mapped[str | None] = mapped_column(String(160))
     performed_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class CandidatePool(Base):
+    __tablename__ = "candidate_pools"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(160))
+    model_run_id: Mapped[int] = mapped_column(ForeignKey("model_runs.id"))
+    content_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    screening_rules: Mapped[dict[str, Any]] = mapped_column(JSON)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    candidates: Mapped[list["PoolCandidate"]] = relationship(
+        back_populates="pool", cascade="all, delete-orphan"
+    )
+
+
+class PoolCandidate(Base):
+    __tablename__ = "pool_candidates"
+    __table_args__ = (UniqueConstraint("pool_id", "compound_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pool_id: Mapped[int] = mapped_column(ForeignKey("candidate_pools.id", ondelete="CASCADE"))
+    compound_id: Mapped[int] = mapped_column(ForeignKey("compounds.id"))
+    passed_screen: Mapped[bool] = mapped_column(Boolean)
+    rejection_reasons: Mapped[list[str]] = mapped_column(JSON)
+    properties: Mapped[dict[str, Any]] = mapped_column(JSON)
+    rank: Mapped[int | None] = mapped_column(Integer)
+    pool: Mapped[CandidatePool] = relationship(back_populates="candidates")
+    compound: Mapped[Compound] = relationship()
+
+
+class Preregistration(Base):
+    __tablename__ = "preregistrations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    pool_id: Mapped[int] = mapped_column(ForeignKey("candidate_pools.id"), unique=True)
+    report: Mapped[dict[str, Any]] = mapped_column(JSON)
+    report_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    signature: Mapped[str] = mapped_column(String(64))
+    signed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_type: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    parameters: Mapped[dict[str, Any]] = mapped_column(JSON)
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)

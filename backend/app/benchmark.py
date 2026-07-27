@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .chemistry import InvalidSmilesError, normalize_smiles
+from .datasets import COADD_ARCHIVE_URL, COADD_LICENSE, iter_coadd_dose_response
 from .models import Assay, Compound, Dataset, Measurement, ModelRun, Prediction
 
 ACTIVE_MIC_UG_ML = 32.0
@@ -117,6 +119,90 @@ def import_chembl_csv(db: Session, csv_path: Path, manifest_path: Path | None = 
                     active=active,
                 )
             )
+    db.commit()
+    db.refresh(dataset)
+    return dataset
+
+
+def import_coadd_archive(db: Session, archive: Path) -> Dataset:
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+    existing = db.scalar(select(Dataset).where(Dataset.sha256 == digest))
+    if existing:
+        return existing
+    dataset = Dataset(
+        name="CO-ADD A. baumannii dose-response MIC",
+        version="r03 2020-02",
+        source_url=COADD_ARCHIVE_URL,
+        license=COADD_LICENSE,
+        query={"organism": "Acinetobacter baumannii", "drval_type": "MIC"},
+        sha256=digest,
+        record_count=0,
+    )
+    db.add(dataset)
+    db.flush()
+    assays: dict[str, Assay] = {}
+    seen_measurements: set[tuple[int, int, float]] = set()
+    imported = 0
+    for row in iter_coadd_dose_response(archive):
+        if row["ORGANISM"] != "Acinetobacter baumannii" or row["DRVAL_TYPE"] != "MIC":
+            continue
+        match = re.fullmatch(r"\s*([<>=]{0,2})\s*([0-9.]+)\s*", row["DRVAL_MEDIAN"])
+        if not match:
+            continue
+        try:
+            chemistry = normalize_smiles(row["SMILES"])
+        except InvalidSmilesError:
+            continue
+        relation, raw_value = match.groups()
+        mic = mic_to_ug_ml(float(raw_value), row["DRVAL_UNIT"], chemistry.molecular_weight)
+        active = classify_mic(mic, relation) if mic is not None else None
+        if mic is None or active is None:
+            continue
+        compound = db.scalar(select(Compound).where(Compound.inchikey == chemistry.inchikey))
+        if compound is None:
+            compound = Compound(
+                name=row["COMPOUND_NAME"] or row["COADD_ID"],
+                source_id=row["COADD_ID"],
+                smiles=row["SMILES"],
+                **chemistry.__dict__,
+                target_pathogen=row["ORGANISM"],
+                activity_score=None,
+                confidence=None,
+                status="measured",
+                evidence_source=f"CO-ADD:{row['COADD_ID']}",
+            )
+            db.add(compound)
+            db.flush()
+        assay_key = f"{row['ASSAY_ID']}:{row['STRAIN']}"
+        assay = assays.get(assay_key)
+        if assay is None:
+            assay = Assay(
+                dataset_id=dataset.id,
+                external_id=assay_key,
+                organism=row["ORGANISM"],
+                assay_type="MIC",
+                description=f"CO-ADD dose response; strain {row['STRAIN']}",
+            )
+            db.add(assay)
+            db.flush()
+            assays[assay_key] = assay
+        key = (assay.id, compound.id, mic)
+        if key in seen_measurements:
+            continue
+        seen_measurements.add(key)
+        db.add(
+            Measurement(
+                compound_id=compound.id,
+                assay_id=assay.id,
+                standard_type="MIC",
+                relation=relation or "=",
+                value=mic,
+                units="ug/mL",
+                active=active,
+            )
+        )
+        imported += 1
+    dataset.record_count = imported
     db.commit()
     db.refresh(dataset)
     return dataset

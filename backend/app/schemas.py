@@ -69,3 +69,19 @@ class ModelRunRead(BaseModel):
 class HealthRead(BaseModel):
     status: str
     service: str
+
+
+class CandidatePoolCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    model_run_id: int
+    compound_ids: list[int] = Field(min_length=1, max_length=5000)
+
+
+class ExperimentCreate(BaseModel):
+    compound_id: int
+    preregistration_id: int
+    protocol_uri: str
+    status: str = Field(default="planned", max_length=40)
+    result: dict[str, Any] | None = None
+    performed_by: str | None = None
+    performed_at: datetime | None = None

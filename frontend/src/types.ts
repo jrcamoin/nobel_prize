@@ -39,3 +39,24 @@ export type ModelRun = {
     };
   };
 };
+
+export type CandidatePool = {
+  id: number;
+  name: string;
+  model_run_id: number;
+  content_sha256: string;
+  locked_at: string | null;
+  preregistration: {
+    id: number; report_sha256: string; signature: string; signed_at: string;
+  } | null;
+  candidates: Array<{
+    compound_id: number; name: string; rank: number; passed_screen: boolean;
+    rejection_reasons: string[];
+  }>;
+};
+
+export type Job = {
+  id: number; job_type: string; status: string;
+  parameters: Record<string, unknown>; result: Record<string, unknown> | null;
+  error: string | null; created_at: string;
+};

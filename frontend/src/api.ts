@@ -1,4 +1,11 @@
-import type { Compound, CompoundDetail, Dataset, ModelRun } from "./types";
+import type {
+  CandidatePool,
+  Compound,
+  CompoundDetail,
+  Dataset,
+  Job,
+  ModelRun,
+} from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -24,3 +31,9 @@ export const fetchModelRuns = (signal?: AbortSignal) =>
 
 export const fetchCompound = (id: number, signal?: AbortSignal) =>
   get<CompoundDetail>(`/api/compounds/${id}`, signal);
+
+export const fetchCandidatePools = (signal?: AbortSignal) =>
+  get<CandidatePool[]>("/api/candidate-pools", signal);
+
+export const fetchJobs = (signal?: AbortSignal) =>
+  get<Job[]>("/api/jobs", signal);

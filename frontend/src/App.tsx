@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  BadgeCheck,
   Beaker,
   ChevronRight,
   Database,
@@ -10,8 +11,22 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { fetchCompound, fetchCompounds, fetchDatasets, fetchModelRuns } from "./api";
-import type { Compound, CompoundDetail, Dataset, ModelRun } from "./types";
+import {
+  fetchCandidatePools,
+  fetchCompound,
+  fetchCompounds,
+  fetchDatasets,
+  fetchJobs,
+  fetchModelRuns,
+} from "./api";
+import type {
+  CandidatePool,
+  Compound,
+  CompoundDetail,
+  Dataset,
+  Job,
+  ModelRun,
+} from "./types";
 
 function Percent({ value }: { value: number }) {
   return <span className="numeric">{Math.round(value * 100)}%</span>;
@@ -21,6 +36,8 @@ export default function App() {
   const [compounds, setCompounds] = useState<Compound[]>([]);
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [modelRuns, setModelRuns] = useState<ModelRun[]>([]);
+  const [candidatePools, setCandidatePools] = useState<CandidatePool[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [selected, setSelected] = useState<CompoundDetail | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -34,11 +51,15 @@ export default function App() {
       fetchCompounds(controller.signal),
       fetchDatasets(controller.signal),
       fetchModelRuns(controller.signal),
+      fetchCandidatePools(controller.signal),
+      fetchJobs(controller.signal),
     ])
-      .then(([nextCompounds, nextDatasets, nextRuns]) => {
+      .then(([nextCompounds, nextDatasets, nextRuns, nextPools, nextJobs]) => {
         setCompounds(nextCompounds);
         setDatasets(nextDatasets);
         setModelRuns(nextRuns);
+        setCandidatePools(nextPools);
+        setJobs(nextJobs);
       })
       .catch((reason: Error) => {
         if (reason.name !== "AbortError") setError(reason.message);
@@ -75,6 +96,7 @@ export default function App() {
           <a className="nav-link" href="#experiments"><Activity size={17} /><span>Experiments</span></a>
           <a className="nav-link" href="#datasets"><Database size={17} /><span>Datasets</span></a>
           <a className="nav-link" href="#models"><ShieldCheck size={17} /><span>Models</span></a>
+          <a className="nav-link" href="#prospective"><BadgeCheck size={17} /><span>Prospective</span></a>
         </nav>
         <div className="sidebar-foot">
           <span className="status-dot" />
@@ -198,6 +220,38 @@ export default function App() {
                 )}
               </div>
             ))}
+          </div>
+        </section>
+        <section className="prospective-panel" id="prospective">
+          <div className="panel-heading">
+            <BadgeCheck size={17} />
+            <div><h2>Prospective validation</h2><p>Immutable candidate pools and execution status</p></div>
+          </div>
+          <div className="prospective-content">
+            <div>
+              <h3>Candidate pools</h3>
+              {candidatePools.length === 0 ? <div className="compact-empty">No pool preregistered</div> : candidatePools.map((pool) => {
+                const passed = pool.candidates.filter((candidate) => candidate.passed_screen).length;
+                return (
+                  <div className="pool-row" key={pool.id}>
+                    <div><strong>{pool.name}</strong><span>{passed}/{pool.candidates.length} passed screening</span></div>
+                    <div className="pool-state">
+                      <span className={pool.locked_at ? "locked" : "draft"}>{pool.locked_at ? "Locked" : "Draft"}</span>
+                      <code title={pool.content_sha256}>{pool.content_sha256.slice(0, 12)}</code>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div>
+              <h3>Background jobs</h3>
+              {jobs.length === 0 ? <div className="compact-empty">No queued jobs</div> : jobs.slice(0, 8).map((job) => (
+                <div className="job-row" key={job.id}>
+                  <span>{job.job_type.replaceAll("_", " ")}</span>
+                  <strong className={`job-${job.status}`}>{job.status}</strong>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
         {selected && (

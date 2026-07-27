@@ -42,3 +42,7 @@ def test_missing_compound_detail_returns_404(client):
 
 def test_missing_model_report_returns_404(client):
     assert client.get("/api/model-runs/999/report").status_code == 404
+
+
+def test_training_job_requires_dataset(client):
+    assert client.post("/api/jobs/train/999").status_code == 404

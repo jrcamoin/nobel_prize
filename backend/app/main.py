@@ -1,21 +1,38 @@
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from .artifacts import upload_artifact
+from .benchmark import train_baseline
 from .chemistry import InvalidSmilesError, normalize_smiles
 from .config import get_settings
-from .database import get_db
-from .models import Compound, Dataset, ModelRun, Prediction
+from .database import SessionLocal, get_db
+from .models import (
+    CandidatePool,
+    Compound,
+    Dataset,
+    Experiment,
+    Job,
+    ModelRun,
+    PoolCandidate,
+    Prediction,
+    Preregistration,
+)
+from .prospective import create_pool, preregister_pool
 from .schemas import (
+    CandidatePoolCreate,
     CompoundCreate,
     CompoundDetail,
     CompoundRead,
     DatasetRead,
+    ExperimentCreate,
     HealthRead,
     ModelRunRead,
 )
@@ -159,3 +176,167 @@ def model_run_report(run_id: int, db: DatabaseSession) -> dict:
             for prediction, compound in predictions
         ],
     }
+
+
+def _pool_payload(db: Session, pool: CandidatePool) -> dict:
+    candidates = db.execute(
+        select(PoolCandidate, Compound)
+        .join(Compound, Compound.id == PoolCandidate.compound_id)
+        .where(PoolCandidate.pool_id == pool.id)
+        .order_by(PoolCandidate.rank)
+    ).all()
+    registration = db.scalar(select(Preregistration).where(Preregistration.pool_id == pool.id))
+    return {
+        "id": pool.id,
+        "name": pool.name,
+        "model_run_id": pool.model_run_id,
+        "content_sha256": pool.content_sha256,
+        "screening_rules": pool.screening_rules,
+        "locked_at": pool.locked_at,
+        "preregistration": (
+            {
+                "id": registration.id,
+                "report_sha256": registration.report_sha256,
+                "signature": registration.signature,
+                "signed_at": registration.signed_at,
+            }
+            if registration
+            else None
+        ),
+        "candidates": [
+            {
+                "compound_id": compound.id,
+                "name": compound.name,
+                "inchikey": compound.inchikey,
+                "rank": item.rank,
+                "passed_screen": item.passed_screen,
+                "rejection_reasons": item.rejection_reasons,
+                "properties": item.properties,
+            }
+            for item, compound in candidates
+        ],
+    }
+
+
+@app.get("/api/candidate-pools", tags=["prospective"])
+def list_candidate_pools(db: DatabaseSession) -> list[dict]:
+    pools = list(db.scalars(select(CandidatePool).order_by(CandidatePool.created_at.desc())))
+    return [_pool_payload(db, pool) for pool in pools]
+
+
+@app.post("/api/candidate-pools", status_code=201, tags=["prospective"])
+def create_candidate_pool(
+    payload: CandidatePoolCreate, db: DatabaseSession, _: WriteAccess
+) -> dict:
+    try:
+        pool = create_pool(db, payload.name, payload.model_run_id, payload.compound_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _pool_payload(db, pool)
+
+
+@app.post("/api/candidate-pools/{pool_id}/preregister", tags=["prospective"])
+def preregister_candidate_pool(pool_id: int, db: DatabaseSession, _: WriteAccess) -> dict:
+    try:
+        registration = preregister_pool(db, pool_id, settings.preregistration_signing_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "id": registration.id,
+        "pool_id": registration.pool_id,
+        "report": registration.report,
+        "report_sha256": registration.report_sha256,
+        "signature": registration.signature,
+        "signed_at": registration.signed_at,
+    }
+
+
+@app.post("/api/experiments", status_code=201, tags=["experiments"])
+def create_experiment(payload: ExperimentCreate, db: DatabaseSession, _: WriteAccess) -> dict:
+    registration = db.get(Preregistration, payload.preregistration_id)
+    if registration is None:
+        raise HTTPException(status_code=422, detail="Preregistration not found")
+    candidate = db.scalar(
+        select(PoolCandidate).where(
+            PoolCandidate.pool_id == registration.pool_id,
+            PoolCandidate.compound_id == payload.compound_id,
+        )
+    )
+    if candidate is None:
+        raise HTTPException(status_code=422, detail="Compound is not in the preregistered pool")
+    experiment = Experiment(**payload.model_dump())
+    db.add(experiment)
+    db.commit()
+    db.refresh(experiment)
+    return {
+        "id": experiment.id,
+        "compound_id": experiment.compound_id,
+        "preregistration_id": experiment.preregistration_id,
+        "status": experiment.status,
+        "result": experiment.result,
+    }
+
+
+def _run_training_job(job_id: int, dataset_id: int, seed: int) -> None:
+    with SessionLocal() as db:
+        job = db.get(Job, job_id)
+        job.status = "running"
+        job.started_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
+        try:
+            run = train_baseline(db, dataset_id, Path("artifacts"), seed)
+            artifact_path = Path("artifacts") / f"baseline-dataset-{dataset_id}.joblib"
+            artifact_uri = upload_artifact(artifact_path, settings)
+            job = db.get(Job, job_id)
+            job.status = "completed"
+            job.result = {
+                "model_run_id": run.id,
+                "metrics": run.metrics,
+                "artifact_uri": artifact_uri,
+            }
+        except Exception as exc:  # noqa: BLE001 - job boundary must persist failures
+            db.rollback()
+            job = db.get(Job, job_id)
+            job.status = "failed"
+            job.error = str(exc)
+        job.finished_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
+
+
+@app.get("/api/jobs", tags=["jobs"])
+def list_jobs(db: DatabaseSession) -> list[dict]:
+    jobs = list(db.scalars(select(Job).order_by(Job.created_at.desc()).limit(100)))
+    return [
+        {
+            "id": job.id,
+            "job_type": job.job_type,
+            "status": job.status,
+            "parameters": job.parameters,
+            "result": job.result,
+            "error": job.error,
+            "created_at": job.created_at,
+        }
+        for job in jobs
+    ]
+
+
+@app.post("/api/jobs/train/{dataset_id}", status_code=202, tags=["jobs"])
+def enqueue_training(
+    dataset_id: int,
+    background_tasks: BackgroundTasks,
+    db: DatabaseSession,
+    _: WriteAccess,
+    seed: int = 17,
+) -> dict:
+    if db.get(Dataset, dataset_id) is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    job = Job(
+        job_type="train_baseline",
+        status="queued",
+        parameters={"dataset_id": dataset_id, "seed": seed},
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    background_tasks.add_task(_run_training_job, job.id, dataset_id, seed)
+    return {"id": job.id, "status": job.status}
