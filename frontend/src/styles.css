@@ -78,6 +78,7 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
 .confidence span { display: block; height: 100%; background: #51856d; }
 .badge { display: inline-block; padding: 4px 7px; background: #fff4d3; color: #795e16; border-radius: 4px; font-size: 11px; white-space: nowrap; }
 .row-action { width: 30px; height: 30px; border: 0; border-radius: 4px; }
+.compare-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #51856d; background: #edf4f0; color: #2f6d4e; padding: 8px 11px; border-radius: 4px; }
 .state { padding: 50px 20px; text-align: center; color: #748079; }
 .state.error { display: grid; gap: 5px; color: #8b3d32; }
 .state.error span { font-size: 13px; }
@@ -96,6 +97,7 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
 .model-summary > strong, .model-summary > span { display: block; }
 .model-summary > strong { font-size: 13px; }
 .model-summary > span { margin: 3px 0 14px; color: #748079; font-size: 11px; }
+.report-link { display: inline-block; margin-bottom: 12px; color: #2f6d4e; font-size: 11px; }
 .score-grid { display: grid; grid-template-columns: repeat(3, 1fr); background: #f5f7f6; border: 1px solid #e1e6e3; }
 .score-grid div { padding: 9px 10px; border-right: 1px solid #e1e6e3; }
 .score-grid div:last-child { border: 0; }
@@ -124,6 +126,15 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
 .evidence-timeline strong, .evidence-timeline span, .evidence-timeline b { display: block; }
 .evidence-timeline span { margin-top: 3px; color: #748079; }
 .evidence-timeline b { margin-top: 6px; font-weight: 600; }
+.source-links { display: grid; gap: 7px; }
+.source-links a { display: flex; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid #e1e6e3; color: #2f6d4e; font-size: 12px; text-decoration: none; }
+.source-links span { color: #748079; font-size: 10px; }
+.comparison-overlay { position: fixed; inset: 0; z-index: 30; background: rgb(18 28 23 / 42%); padding: 8vh 5vw; }
+.comparison-panel { max-width: 900px; margin: auto; background: #fff; padding: 22px; border-radius: 7px; }
+.comparison-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 18px; }
+.comparison-cards article { display: grid; gap: 7px; padding: 14px; border: 1px solid #dce2df; }
+.comparison-cards article span { color: #748079; font-size: 12px; }
+.comparison-cards article b { font-size: 12px; }
 .activity { padding: 3px 5px; border-radius: 3px; }
 .activity.active { background: #e5f3eb; color: #2f6d4e; }
 .activity.inactive { background: #f3ece9; color: #855044; }

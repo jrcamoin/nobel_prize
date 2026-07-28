@@ -19,6 +19,8 @@ import {
   fetchDatasets,
   fetchJobs,
   fetchModelRuns,
+  compareCompounds,
+  fetchPublicSources,
   searchCompounds,
 } from "./api";
 import type {
@@ -44,6 +46,9 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [compareIds, setCompareIds] = useState<number[]>([]);
+  const [comparison, setComparison] = useState<Awaited<ReturnType<typeof compareCompounds>> | null>(null);
+  const [publicSources, setPublicSources] = useState<Array<{ source: string; url: string; kind: string }>>([]);
 
   const load = () => {
     const controller = new AbortController();
@@ -83,10 +88,12 @@ export default function App() {
   }, [compounds, query]);
 
   const openCompound = (id: number) => {
-    Promise.all([fetchCompound(id), fetchCompoundEvidence(id)])
-      .then(([compound, evidence]) => setSelected({ ...compound, evidence }))
+    Promise.all([fetchCompound(id), fetchCompoundEvidence(id), fetchPublicSources(id)])
+      .then(([compound, evidence, sources]) => { setSelected({ ...compound, evidence }); setPublicSources(sources.links); })
       .catch((reason: Error) => setError(reason.message));
   };
+  const toggleCompare = (id: number) => setCompareIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id].slice(-8));
+  const runComparison = () => compareCompounds(compareIds).then(setComparison).catch((reason: Error) => setError(reason.message));
 
   const handleSearch = (value: string) => {
     setQuery(value);
@@ -145,6 +152,7 @@ export default function App() {
               <span className="sr-only">Search candidates</span>
               <input value={query} onChange={(event) => handleSearch(event.target.value)} placeholder="Search molecules, IDs, or SMILES" />
             </label>
+            {compareIds.length > 0 && <button className="compare-button" onClick={runComparison}><Activity size={15} /> Compare ({compareIds.length})</button>}
           </div>
 
           {error ? (
@@ -159,6 +167,7 @@ export default function App() {
               <table>
                 <thead>
                   <tr>
+                    <th aria-label="Select" />
                     <th>Candidate</th>
                     <th>Activity</th>
                     <th>Confidence</th>
@@ -170,6 +179,7 @@ export default function App() {
                 <tbody>
                   {visible.map((compound, index) => (
                     <tr key={compound.id}>
+                      <td><input type="checkbox" checked={compareIds.includes(compound.id)} onChange={() => toggleCompare(compound.id)} aria-label={`Select ${compound.name} for comparison`} /></td>
                       <td>
                         <span className="rank">{String(index + 1).padStart(2, "0")}</span>
                         <span><strong>{compound.name}</strong><code>{compound.smiles}</code></span>
@@ -208,6 +218,7 @@ export default function App() {
             {modelRuns.length === 0 ? <div className="compact-empty">No benchmark completed</div> : modelRuns.map((run) => (
               <div className="model-summary" key={run.id}>
                 <strong>{run.name}</strong><span>{run.split_strategy}</span>
+                <a className="report-link" href={`${import.meta.env.VITE_API_URL ?? "http://localhost:8000"}/api/model-runs/${run.id}/report`} target="_blank" rel="noreferrer">Open reproducibility report</a>
                 <div className="score-grid">
                   <div><small>PR AUC</small><b>{run.metrics.average_precision?.toFixed(3) ?? "—"}</b></div>
                   <div><small>ROC AUC</small><b>{run.metrics.roc_auc?.toFixed(3) ?? "—"}</b></div>
@@ -306,9 +317,12 @@ export default function App() {
                   </div>
                 ))}
               </div>
+              <h3>Public source records</h3>
+              <div className="source-links">{publicSources.map((source) => <a key={source.source} href={source.url} target="_blank" rel="noreferrer">{source.source}<span>{source.kind}</span></a>)}</div>
             </aside>
           </div>
         )}
+        {comparison && <div className="comparison-overlay" role="dialog" aria-modal="true"><section className="comparison-panel"><div className="drawer-heading"><div><p className="eyebrow">Evidence comparison</p><h2>{comparison.compounds.length} compounds</h2></div><button className="icon-button" aria-label="Close comparison" onClick={() => setComparison(null)}><X size={18} /></button></div><div className="comparison-cards">{comparison.compounds.map((compound) => <article key={compound.id}><strong>{compound.name}</strong><code>{compound.inchikey}</code><span>{compound.molecular_weight.toFixed(1)} g/mol</span><b>{compound.evidence_count} evidence records</b><b>{compound.active_evidence_count} active</b></article>)}</div></section></div>}
       </main>
     </div>
   );

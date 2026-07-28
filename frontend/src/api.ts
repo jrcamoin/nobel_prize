@@ -39,6 +39,10 @@ export const fetchCompoundEvidence = (id: number, signal?: AbortSignal) =>
 export const searchCompounds = (query: string, signal?: AbortSignal) =>
   get<Compound[]>(`/api/search?query=${encodeURIComponent(query)}`, signal);
 
+export type Comparison = { compounds: Array<Compound & { evidence_count: number; active_evidence_count: number; molecular_weight: number; inchikey: string }> };
+export const compareCompounds = (ids: number[]) => get<Comparison>(`/api/compare?ids=${ids.join(",")}`);
+export const fetchPublicSources = (id: number) => get<{ links: Array<{ source: string; url: string; kind: string }> }>(`/api/compounds/${id}/public-sources`);
+
 export const fetchCandidatePools = (signal?: AbortSignal) =>
   get<CandidatePool[]>("/api/candidate-pools", signal);
 
