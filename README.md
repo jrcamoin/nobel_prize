@@ -15,6 +15,7 @@ drug-discovery system and must not be used for clinical decisions.
 - Average precision, ROC AUC, Brier score, calibration bins, class counts, and overlap checks
 - Alembic migrations, PostgreSQL/SQLite support, containers, API tests, UI tests, and CI
 - Immutable candidate pools, PAINS/property screening, signed preregistration, experiments, and jobs
+- Searchable public-evidence timelines across imported assays and source datasets
 
 ## Local setup
 
@@ -120,3 +121,12 @@ replicate disagreement, censoring relations, strain differences, and class
 imbalance require deeper curation before publishing results. A retrospective
 metric is not evidence that a compound works; the next meaningful milestone is
 a preregistered prediction evaluated by an independent laboratory.
+
+## Evidence-first mode
+
+The primary application workflow is retrospective and computational. Search by
+compound name, source ID, InChIKey, or SMILES, then inspect the source-linked
+evidence timeline in the compound drawer. ChEMBL and CO-ADD measurements are
+public research evidence; model scores are computational prioritization, not
+clinical or laboratory validation. PubChem BioAssay and BindingDB adapters can
+be added as additional source-specific imports without changing that boundary.

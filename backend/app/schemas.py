@@ -40,6 +40,20 @@ class CompoundDetail(CompoundRead):
     measurements: list[MeasurementRead]
 
 
+class EvidenceRead(BaseModel):
+    source: str
+    source_url: str
+    dataset_sha256: str
+    assay_id: str
+    organism: str
+    description: str | None
+    standard_type: str
+    relation: str | None
+    value: float
+    units: str
+    active: bool
+
+
 class DatasetRead(BaseModel):
     id: int
     name: str

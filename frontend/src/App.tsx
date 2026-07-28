@@ -14,10 +14,12 @@ import {
 import {
   fetchCandidatePools,
   fetchCompound,
+  fetchCompoundEvidence,
   fetchCompounds,
   fetchDatasets,
   fetchJobs,
   fetchModelRuns,
+  searchCompounds,
 } from "./api";
 import type {
   CandidatePool,
@@ -81,7 +83,18 @@ export default function App() {
   }, [compounds, query]);
 
   const openCompound = (id: number) => {
-    fetchCompound(id).then(setSelected).catch((reason: Error) => setError(reason.message));
+    Promise.all([fetchCompound(id), fetchCompoundEvidence(id)])
+      .then(([compound, evidence]) => setSelected({ ...compound, evidence }))
+      .catch((reason: Error) => setError(reason.message));
+  };
+
+  const handleSearch = (value: string) => {
+    setQuery(value);
+    if (value.trim().length >= 2) {
+      searchCompounds(value.trim()).then(setCompounds).catch((reason: Error) => setError(reason.message));
+    } else if (!value.trim()) {
+      fetchCompounds().then(setCompounds).catch((reason: Error) => setError(reason.message));
+    }
   };
 
   return (
@@ -130,7 +143,7 @@ export default function App() {
             <label className="search">
               <Search size={16} />
               <span className="sr-only">Search candidates</span>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search candidates" />
+              <input value={query} onChange={(event) => handleSearch(event.target.value)} placeholder="Search molecules, IDs, or SMILES" />
             </label>
           </div>
 
@@ -280,6 +293,16 @@ export default function App() {
                     <span>{measurement.standard_type}</span>
                     <strong>{measurement.relation ?? "="} {measurement.value.toFixed(2)} {measurement.units}</strong>
                     <span className={measurement.active ? "activity active" : "activity inactive"}>{measurement.active ? "Active" : "Inactive"}</span>
+                  </div>
+                ))}
+              </div>
+              <h3>Public evidence timeline</h3>
+              <div className="evidence-timeline">
+                {(selected.evidence ?? []).map((evidence, index) => (
+                  <div key={`${evidence.dataset_sha256}-${evidence.assay_id}-${index}`}>
+                    <strong>{evidence.source}</strong>
+                    <span>{evidence.organism} · {evidence.assay_id}</span>
+                    <b>{evidence.relation ?? "="} {evidence.value} {evidence.units} · {evidence.active ? "active" : "inactive"}</b>
                   </div>
                 ))}
               </div>

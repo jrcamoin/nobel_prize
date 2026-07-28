@@ -7,7 +7,7 @@ from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -17,12 +17,14 @@ from .chemistry import InvalidSmilesError, normalize_smiles
 from .config import get_settings
 from .database import SessionLocal, get_db
 from .models import (
+    Assay,
     CandidatePool,
     Compound,
     Dataset,
     Experiment,
     Job,
     LaboratoryProtocol,
+    Measurement,
     ModelRun,
     PoolCandidate,
     Prediction,
@@ -36,6 +38,7 @@ from .schemas import (
     CompoundDetail,
     CompoundRead,
     DatasetRead,
+    EvidenceRead,
     ExperimentCreate,
     HealthRead,
     LaboratoryProtocolCreate,
@@ -97,6 +100,60 @@ def get_compound(compound_id: int, db: DatabaseSession) -> Compound:
     if compound is None:
         raise HTTPException(status_code=404, detail="Compound not found")
     return compound
+
+
+@app.get("/api/search", response_model=list[CompoundRead], tags=["evidence"])
+def search_compounds(
+    query: Annotated[str, Query(min_length=2, max_length=120)],
+    db: DatabaseSession,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[Compound]:
+    pattern = f"%{query.strip()}%"
+    statement = (
+        select(Compound)
+        .where(
+            or_(
+                Compound.name.ilike(pattern),
+                Compound.source_id.ilike(pattern),
+                Compound.inchikey.ilike(pattern),
+                Compound.canonical_smiles.ilike(pattern),
+            )
+        )
+        .order_by(Compound.activity_score.desc().nullslast())
+        .limit(limit)
+    )
+    return list(db.scalars(statement))
+
+
+@app.get(
+    "/api/compounds/{compound_id}/evidence", response_model=list[EvidenceRead], tags=["evidence"]
+)
+def compound_evidence(compound_id: int, db: DatabaseSession) -> list[dict]:
+    if db.get(Compound, compound_id) is None:
+        raise HTTPException(status_code=404, detail="Compound not found")
+    rows = db.execute(
+        select(Measurement, Assay, Dataset)
+        .join(Assay, Assay.id == Measurement.assay_id)
+        .join(Dataset, Dataset.id == Assay.dataset_id)
+        .where(Measurement.compound_id == compound_id)
+        .order_by(Dataset.imported_at.desc(), Measurement.value)
+    ).all()
+    return [
+        {
+            "source": dataset.name,
+            "source_url": dataset.source_url,
+            "dataset_sha256": dataset.sha256,
+            "assay_id": assay.external_id,
+            "organism": assay.organism,
+            "description": assay.description,
+            "standard_type": measurement.standard_type,
+            "relation": measurement.relation,
+            "value": measurement.value,
+            "units": measurement.units,
+            "active": measurement.active,
+        }
+        for measurement, assay, dataset in rows
+    ]
 
 
 @app.post(

@@ -119,6 +119,11 @@ code { display: block; width: 180px; overflow: hidden; text-overflow: ellipsis; 
 .detail-drawer dd code { width: 100%; white-space: normal; }
 .detail-drawer h3 { margin: 22px 0 10px; font-size: 13px; }
 .measurement-list > div { display: grid; grid-template-columns: 50px 1fr auto; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid #e8ecea; font-size: 11px; }
+.evidence-timeline > div { padding: 10px; border: 1px solid #e1e6e3; border-bottom: 0; font-size: 11px; }
+.evidence-timeline > div:last-child { border-bottom: 1px solid #e1e6e3; }
+.evidence-timeline strong, .evidence-timeline span, .evidence-timeline b { display: block; }
+.evidence-timeline span { margin-top: 3px; color: #748079; }
+.evidence-timeline b { margin-top: 6px; font-weight: 600; }
 .activity { padding: 3px 5px; border-radius: 3px; }
 .activity.active { background: #e5f3eb; color: #2f6d4e; }
 .activity.inactive { background: #f3ece9; color: #855044; }

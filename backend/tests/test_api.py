@@ -50,3 +50,7 @@ def test_training_job_requires_dataset(client):
 
 def test_qualification_requires_pool(client):
     assert client.post("/api/candidate-pools/999/qualify").status_code == 422
+
+
+def test_search_requires_query(client):
+    assert client.get("/api/search?query=CCO").status_code == 200

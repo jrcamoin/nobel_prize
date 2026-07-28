@@ -18,6 +18,13 @@ export type CompoundDetail = Compound & {
   measurements: Array<{
     standard_type: string; relation: string | null; value: number; units: string; active: boolean;
   }>;
+  evidence?: Evidence[];
+};
+
+export type Evidence = {
+  source: string; source_url: string; dataset_sha256: string; assay_id: string;
+  organism: string; description: string | null; standard_type: string;
+  relation: string | null; value: number; units: string; active: boolean;
 };
 
 export type Dataset = {

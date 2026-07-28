@@ -3,6 +3,7 @@ import type {
   Compound,
   CompoundDetail,
   Dataset,
+  Evidence,
   Job,
   ModelRun,
 } from "./types";
@@ -31,6 +32,12 @@ export const fetchModelRuns = (signal?: AbortSignal) =>
 
 export const fetchCompound = (id: number, signal?: AbortSignal) =>
   get<CompoundDetail>(`/api/compounds/${id}`, signal);
+
+export const fetchCompoundEvidence = (id: number, signal?: AbortSignal) =>
+  get<Evidence[]>(`/api/compounds/${id}/evidence`, signal);
+
+export const searchCompounds = (query: string, signal?: AbortSignal) =>
+  get<Compound[]>(`/api/search?query=${encodeURIComponent(query)}`, signal);
 
 export const fetchCandidatePools = (signal?: AbortSignal) =>
   get<CandidatePool[]>("/api/candidate-pools", signal);
