@@ -31,6 +31,7 @@ from .models import (
     Preregistration,
 )
 from .prospective import create_pool, preregister_pool, qualify_pool
+from .public_sources import public_source_links
 from .schemas import (
     CandidateEvidenceUpdate,
     CandidatePoolCreate,
@@ -154,6 +155,57 @@ def compound_evidence(compound_id: int, db: DatabaseSession) -> list[dict]:
         }
         for measurement, assay, dataset in rows
     ]
+
+
+@app.get("/api/compounds/{compound_id}/public-sources", tags=["evidence"])
+def compound_public_sources(compound_id: int, db: DatabaseSession) -> dict:
+    compound = db.get(Compound, compound_id)
+    if compound is None:
+        raise HTTPException(status_code=404, detail="Compound not found")
+    return {
+        "compound_id": compound.id,
+        "inchikey": compound.inchikey,
+        "links": public_source_links(compound.inchikey),
+    }
+
+
+@app.get("/api/compare", tags=["evidence"])
+def compare_compounds(ids: Annotated[str, Query(min_length=1)], db: DatabaseSession) -> dict:
+    try:
+        compound_ids = list(dict.fromkeys(int(value) for value in ids.split(",") if value.strip()))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="ids must be comma-separated integers") from exc
+    if not compound_ids or len(compound_ids) > 20:
+        raise HTTPException(status_code=422, detail="provide between 1 and 20 compound IDs")
+    compounds = {
+        compound.id: compound
+        for compound in db.scalars(select(Compound).where(Compound.id.in_(compound_ids)))
+    }
+    missing = [compound_id for compound_id in compound_ids if compound_id not in compounds]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Compound not found: {missing[0]}")
+    measurements = (
+        db.execute(select(Measurement).where(Measurement.compound_id.in_(compound_ids)))
+        .scalars()
+        .all()
+    )
+    return {
+        "compounds": [
+            {
+                "id": (compound := compounds[compound_id]).id,
+                "name": compound.name,
+                "inchikey": compound.inchikey,
+                "molecular_weight": compound.molecular_weight,
+                "activity_score": compound.activity_score,
+                "confidence": compound.confidence,
+                "evidence_count": sum(item.compound_id == compound_id for item in measurements),
+                "active_evidence_count": sum(
+                    item.compound_id == compound_id and item.active for item in measurements
+                ),
+            }
+            for compound_id in compound_ids
+        ]
+    }
 
 
 @app.post(

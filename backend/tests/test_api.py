@@ -54,3 +54,7 @@ def test_qualification_requires_pool(client):
 
 def test_search_requires_query(client):
     assert client.get("/api/search?query=CCO").status_code == 200
+
+
+def test_compare_rejects_invalid_ids(client):
+    assert client.get("/api/compare?ids=not-an-id").status_code == 422
