@@ -208,7 +208,7 @@ export default function App() {
             <div className="panel-heading"><Database size={17} /><div><h2>Datasets</h2><p>Immutable source manifests</p></div></div>
             {datasets.length === 0 ? <div className="compact-empty">No dataset imported</div> : datasets.map((dataset) => (
               <div className="evidence-row" key={dataset.id}>
-                <div><strong>{dataset.name}</strong><span>{dataset.record_count} records · {dataset.license}</span></div>
+                <div><a href={dataset.source_url} target="_blank" rel="noreferrer"><strong>{dataset.name}</strong></a><span>{dataset.record_count} records · {dataset.license}</span></div>
                 <code title={dataset.sha256}>{dataset.sha256.slice(0, 12)}</code>
               </div>
             ))}
@@ -311,7 +311,7 @@ export default function App() {
               <div className="evidence-timeline">
                 {(selected.evidence ?? []).map((evidence, index) => (
                   <div key={`${evidence.dataset_sha256}-${evidence.assay_id}-${index}`}>
-                    <strong>{evidence.source}</strong>
+                    <a href={evidence.source_url} target="_blank" rel="noreferrer"><strong>{evidence.source}</strong></a>
                     <span>{evidence.organism} · {evidence.assay_id}</span>
                     <b>{evidence.relation ?? "="} {evidence.value} {evidence.units} · {evidence.active ? "active" : "inactive"}</b>
                   </div>

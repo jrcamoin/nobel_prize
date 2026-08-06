@@ -30,9 +30,17 @@ alembic upgrade head
 Run the services in separate terminals:
 
 ```bash
+make bootstrap
 make api
 make web
 ```
+
+`make bootstrap` makes a fresh installation useful: it downloads and imports
+public *A. baumannii* MIC evidence from ChEMBL and CO-ADD, then trains one
+reproducible baseline per dataset. It is safe to run again; content hashes
+prevent duplicate dataset imports and existing model runs are reused. Use
+`python backend/scripts/bootstrap_public_data.py --help` to select one source,
+refresh the downloads, or import evidence without training.
 
 API documentation is at `http://localhost:8000/docs`; the application is at
 `http://localhost:5173`.
@@ -48,7 +56,7 @@ The signing key must be retained outside the database to verify the commitment.
 
 ## Reproducible benchmark
 
-Download up to 1,000 licensed ChEMBL MIC records:
+Download up to 1,000 licensed ChEMBL MIC records manually:
 
 ```bash
 make data

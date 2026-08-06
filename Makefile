@@ -1,4 +1,4 @@
-.PHONY: api api-test benchmark coadd-data data db-up migrate web web-test
+.PHONY: api api-test benchmark bootstrap coadd-data data db-up migrate web web-test
 
 api:
 	uvicorn app.main:app --app-dir backend --reload
@@ -17,6 +17,9 @@ coadd-data:
 
 benchmark:
 	python backend/scripts/run_benchmark.py data/raw/chembl_ab_mic.csv
+
+bootstrap: migrate
+	python backend/scripts/bootstrap_public_data.py
 
 coadd-benchmark:
 	python backend/scripts/run_benchmark.py data/raw/coadd_complete_r03.zip --format coadd
