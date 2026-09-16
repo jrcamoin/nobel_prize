@@ -8,6 +8,7 @@ from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -596,3 +597,10 @@ def enqueue_training(
     db.refresh(job)
     background_tasks.add_task(_run_training_job, job.id, dataset_id, seed)
     return {"id": job.id, "status": job.status}
+
+
+# The production Docker image contains the built public site here. Keep this mount
+# last so every API and documentation route takes precedence over the single-page app.
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if frontend_dist.is_dir():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")

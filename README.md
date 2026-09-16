@@ -121,6 +121,10 @@ make web-test  # frontend tests
 docker compose up --build  # PostgreSQL + API + production web at :8080
 ```
 
+For a single Docker web service (including Render), use `backend/Dockerfile` with
+the repository root as its build context. It builds the frontend and serves it at
+`/` from FastAPI; API routes remain under `/api` and health is at `/health`.
+
 ## Scientific limitations
 
 Scaffold splits are more demanding than random splits but can still

@@ -5,6 +5,13 @@ def test_health(client):
     assert response.json()["status"] == "ok"
 
 
+def test_built_frontend_is_served_at_root(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert '<div id="root"></div>' in response.text
+
+
 def test_create_and_rank_compounds(client):
     response = client.post(
         "/api/compounds",
