@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import App from "./App";
 
@@ -24,4 +24,16 @@ test("renders ranked compounds from the API", async () => {
 
   expect(await screen.findByText("Candidate A")).toBeInTheDocument();
   expect(screen.getByText("82%")).toBeInTheDocument();
+});
+
+test("shows authentication failures when syncing live evidence", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockImplementation((_url: string, options?: RequestInit) =>
+    Promise.resolve(options?.method === "POST"
+      ? { ok: false, status: 401 }
+      : { ok: true, json: async () => [] }),
+  ));
+  render(<App />);
+  fireEvent.click(screen.getByText("Curator tools: refresh public evidence"));
+  fireEvent.click(await screen.findByRole("button", { name: "Sync from ChEMBL" }));
+  expect(await screen.findByText("Enter a valid API write key to sync.")).toBeInTheDocument();
 });

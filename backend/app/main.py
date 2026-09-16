@@ -3,6 +3,7 @@ import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Annotated
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, status
@@ -12,10 +13,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .artifacts import upload_artifact
-from .benchmark import train_baseline
+from .benchmark import import_chembl_csv, train_baseline
 from .chemistry import InvalidSmilesError, normalize_smiles
 from .config import get_settings
 from .database import SessionLocal, get_db
+from .datasets import download_chembl_mic
+from .explorer import router as explorer_router
 from .models import (
     Assay,
     CandidatePool,
@@ -65,6 +68,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
+app.include_router(explorer_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -528,6 +532,48 @@ def list_jobs(db: DatabaseSession) -> list[dict]:
         }
         for job in jobs
     ]
+
+
+def _run_sync_job(job_id: int, limit: int) -> None:
+    with SessionLocal() as db:
+        job = db.get(Job, job_id)
+        job.status = "running"
+        job.started_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
+        try:
+            with TemporaryDirectory(prefix="chembl-sync-") as directory:
+                path = download_chembl_mic(Path(directory) / "chembl.csv", limit)
+                manifest = json.loads(path.with_suffix(".manifest.json").read_text())
+                dataset = import_chembl_csv(db, path)
+                job = db.get(Job, job_id)
+                job.result = {"dataset_id": dataset.id, "record_count": dataset.record_count,
+                              "manifest": manifest}
+                job.status = "completed"
+        except Exception as exc:  # noqa: BLE001 - persist source failures at the job boundary
+            db.rollback()
+            job = db.get(Job, job_id)
+            job.status = "failed"
+            job.error = str(exc)
+        job.finished_at = datetime.now(UTC).replace(tzinfo=None)
+        db.commit()
+
+
+@app.post("/api/jobs/sync/chembl", status_code=202, tags=["jobs"])
+def enqueue_chembl_sync(
+    background_tasks: BackgroundTasks, db: DatabaseSession, _: WriteAccess,
+    limit: Annotated[int, Query(ge=1, le=10000)] = 1000,
+) -> dict:
+    existing = db.scalar(select(Job).where(
+        Job.job_type == "sync_chembl", Job.status.in_(["queued", "running"])
+    ))
+    if existing:
+        return {"id": existing.id, "status": existing.status}
+    job = Job(job_type="sync_chembl", status="queued", parameters={"limit": limit})
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    background_tasks.add_task(_run_sync_job, job.id, limit)
+    return {"id": job.id, "status": job.status}
 
 
 @app.post("/api/jobs/train/{dataset_id}", status_code=202, tags=["jobs"])

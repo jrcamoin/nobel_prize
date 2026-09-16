@@ -3,6 +3,7 @@ import hashlib
 import json
 import shutil
 import zipfile
+from datetime import UTC, datetime
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
@@ -23,14 +24,23 @@ def _json(url: str) -> dict[str, Any]:
 
 
 def download_chembl_mic(output: Path, limit: int = 1000) -> Path:
+    if not 1 <= limit <= 10000:
+        raise ValueError("ChEMBL limit must be between 1 and 10000")
     query = {
         "target_organism": "Acinetobacter baumannii",
         "standard_type": "MIC",
         "limit": min(limit, 1000),
+        "order_by": "-activity_id",
     }
     url = f"{CHEMBL_API}/activity.json?{urlencode(query)}"
-    payload = _json(url)
-    activities = payload.get("activities", [])[:limit]
+    activities = []
+    while len(activities) < limit:
+        page_query = {**query, "offset": len(activities)}
+        payload = _json(f"{CHEMBL_API}/activity.json?{urlencode(page_query)}")
+        page = payload["activities"]
+        activities.extend(page[:limit - len(activities)])
+        if not page or not payload.get("page_meta", {}).get("next"):
+            break
     molecule_cache: dict[str, str | None] = {}
     rows: list[dict[str, Any]] = []
     for activity in activities:
@@ -60,6 +70,8 @@ def download_chembl_mic(output: Path, limit: int = 1000) -> Path:
                 "document_chembl_id": activity.get("document_chembl_id"),
             }
         )
+    if not rows:
+        raise ValueError("ChEMBL returned no MIC records with usable structures")
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]) if rows else [])
@@ -76,6 +88,9 @@ def download_chembl_mic(output: Path, limit: int = 1000) -> Path:
                 "query": query,
                 "sha256": digest,
                 "record_count": len(rows),
+                "retrieved_at": datetime.now(UTC).isoformat(),
+                "requested_limit": limit,
+                "activities_fetched": len(activities),
             },
             indent=2,
         )

@@ -1,4 +1,5 @@
 export type Compound = {
+  inchikey: string;
   id: number;
   name: string;
   smiles: string;

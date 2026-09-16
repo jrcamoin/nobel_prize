@@ -132,6 +132,56 @@ a preregistered prediction evaluated by an independent laboratory.
 
 ## Evidence-first mode
 
+### Public explorer
+
+The landing page now supports source-linked compound reports, exact list matching,
+evidence comparisons, CSV exports, print-to-PDF, and browser-local watches. Share
+`/?compound=INCHIKEY` to open a report directly. Links show current evidence; CSV
+exports include the report revision for attribution. Upload a CSV with an
+`identifier`, `inchikey`, `smiles`, `name`, or `source_id` column (200 rows / 200 KB).
+Matching preserves unmatched and ambiguous inputs instead of inventing matches.
+
+Reports collapse identical same-source assay measurements across dataset snapshots.
+Cross-source records are not assumed independent. Structured strain, resistance,
+method, medium, and publication identifiers are currently unavailable; original
+assay descriptions remain visible and the report calls out these gaps. Mixed
+benchmark classifications are not proof of contradictory experiments.
+
+Compound and search watches are stored in the current browser. They check for
+changes on page load and every minute while open; no email or push delivery is
+configured. Compound watches ignore repeated snapshots with unchanged measurements.
+Search watches cover the first 50 search matches, not an exhaustive literature feed.
+
+The Docker Compose stack includes one daily `evidence-worker`, which waits for API
+health before importing evidence. For a local deployment, run:
+
+```bash
+.venv/bin/python backend/scripts/refresh_evidence.py --interval-hours 24
+```
+
+Omit the interval for a one-time scheduled run. Use the same working directory and
+database configuration as the API. Run only one worker. Attempts are recorded in
+the jobs timeline; interrupted jobs older than 12 hours are marked failed and
+retried on a later scheduled pass. Each refresh fetches the latest 1,000 ChEMBL
+activity IDs by default (up to 10,000 with `--limit`); this is not complete coverage.
+Previously imported snapshots are retained. CO-ADD remains an archival source.
+
+The worker configuration is supplied but must be started on your host. Before
+public deployment, configure `API_WRITE_KEY`, HTTPS and the deployed CORS origin.
+Public reading, matching and exports require no API key. See
+[the public pilot guide](docs/public-pilot.md) for user sessions and release checks.
+
+Use **Sync from ChEMBL** in the Datasets panel to download current published
+MIC evidence directly into the app. If write authentication is configured, enter
+the API write key in the panel (it is kept only in memory). The app polls job
+status and reloads evidence when the import finishes. Each job retains its source
+manifest, retrieval time, content hash, and any failure. Identical snapshots are
+reused. Sync imports evidence; model retraining remains an explicit separate step.
+ChEMBL is a periodically released research database, not a real-time laboratory feed.
+The sync uses the existing in-process background job mechanism: keep the API running
+until completion; production deployments should use a durable worker before scheduling
+unattended refreshes. The default fetch is a bounded 1,000-record sample, not the full database.
+
 The primary application workflow is retrospective and computational. Search by
 compound name, source ID, InChIKey, or SMILES, then inspect the source-linked
 evidence timeline in the compound drawer. ChEMBL and CO-ADD measurements are

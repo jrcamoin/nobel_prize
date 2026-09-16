@@ -1,0 +1,27 @@
+.public-explorer { padding: 28px; margin: 24px 0; border: 1px solid #cdded8; border-radius: 16px; background: #f7fbf9; color: #213d36; }
+.public-explorer h2 { font-size: 28px; margin: 8px 0; }
+.public-explorer p { line-height: 1.65; }
+.explorer-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 16px 0; }
+.public-explorer button, .public-explorer input, .public-explorer textarea { font: inherit; padding: 9px 12px; border: 1px solid #92aba2; border-radius: 6px; }
+.public-explorer button { cursor: pointer; color: #164e3e; background: white; }
+.public-explorer button:disabled { opacity: .5; cursor: default; }
+.public-explorer input:not([type=checkbox]) { min-width: 220px; }
+.public-explorer textarea { width: 100%; box-sizing: border-box; }
+.public-explorer details { padding: 18px 0; border-top: 1px solid #cdded8; }
+.public-explorer summary { cursor: pointer; font-weight: 600; }
+.explorer-results > div { display: flex; gap: 12px; flex-wrap: wrap; padding: 8px 0; align-items: center; }
+.compound-report { background: white; padding: 24px; border: 1px solid #cdded8; border-radius: 10px; margin: 20px 0; }
+.compound-report code, .compound-report small { overflow-wrap: anywhere; }
+.measurement-card { padding: 16px 0; border-bottom: 1px solid #dbe7e1; }
+.measurement-card small { display: block; margin-top: 8px; }
+.public-explorer .table-scroll { overflow-x: auto; }
+.public-explorer th, .public-explorer td { text-align: left; padding: 12px; }
+.public-explorer [role=alert] { color: #8b2626; }
+@media print {
+  .sidebar, .app-shell > main > :not(.public-explorer), .public-explorer > :not(.compound-report) { display: none !important; }
+  .app-shell, .app-shell > main { display: block; margin: 0; padding: 0; }
+  .public-explorer { border: 0; margin: 0; padding: 0; background: white; }
+  .compound-report { margin: 0; border: 0; }
+  .compound-report .explorer-actions { display: none; }
+}
+@media (max-width: 600px) { .public-explorer { padding: 16px; } .compound-report { padding: 12px; } }

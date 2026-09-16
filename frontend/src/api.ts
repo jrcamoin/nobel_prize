@@ -10,6 +10,16 @@ import type {
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
+export async function syncChembl(apiKey: string): Promise<{ id: number; status: string }> {
+  const response = await fetch(`${API_URL}/api/jobs/sync/chembl`, {
+    method: "POST", headers: apiKey ? { "X-API-Key": apiKey } : {},
+  });
+  if (!response.ok) {
+    throw new Error(response.status === 401 ? "Enter a valid API write key to sync." : `Sync failed (${response.status})`);
+  }
+  return response.json();
+}
+
 export async function fetchCompounds(signal?: AbortSignal): Promise<Compound[]> {
   const response = await fetch(`${API_URL}/api/compounds`, { signal });
   if (!response.ok) {

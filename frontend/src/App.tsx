@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Explorer from "./Explorer";
 import {
   Activity,
   BadgeCheck,
@@ -22,6 +23,7 @@ import {
   compareCompounds,
   fetchPublicSources,
   searchCompounds,
+  syncChembl,
 } from "./api";
 import type {
   CandidatePool,
@@ -42,6 +44,11 @@ export default function App() {
   const [modelRuns, setModelRuns] = useState<ModelRun[]>([]);
   const [candidatePools, setCandidatePools] = useState<CandidatePool[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [apiKey, setApiKey] = useState("");
+  const [syncPending, setSyncPending] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const syncJob = jobs.find((job) => job.job_type === "sync_chembl");
+  const syncing = syncPending || syncJob?.status === "queued" || syncJob?.status === "running";
   const [selected, setSelected] = useState<CompoundDetail | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -76,6 +83,31 @@ export default function App() {
   };
 
   useEffect(load, []);
+
+  useEffect(() => {
+    if (!syncing) return;
+    const timer = window.setInterval(() => {
+      fetchJobs().then((nextJobs) => {
+        setJobs(nextJobs);
+        const latest = nextJobs.find((job) => job.job_type === "sync_chembl");
+        if (latest && ["completed", "failed"].includes(latest.status)) load();
+      }).catch((reason: Error) => setSyncError(reason.message));
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [syncing]);
+
+  const startSync = async () => {
+    setSyncPending(true);
+    setSyncError(null);
+    try {
+      await syncChembl(apiKey);
+      setJobs(await fetchJobs());
+    } catch (reason) {
+      setSyncError(reason instanceof Error ? reason.message : "Unable to sync");
+    } finally {
+      setSyncPending(false);
+    }
+  };
 
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -112,6 +144,7 @@ export default function App() {
           <span>OpenAD</span>
         </div>
         <nav aria-label="Primary navigation">
+          <a className="nav-link" href="#explorer"><Search size={17} /><span>Evidence explorer</span></a>
           <a className="nav-link active" href="#candidates"><Beaker size={17} /><span>Candidates</span></a>
           <a className="nav-link" href="#experiments"><Activity size={17} /><span>Experiments</span></a>
           <a className="nav-link" href="#datasets"><Database size={17} /><span>Datasets</span></a>
@@ -128,13 +161,14 @@ export default function App() {
         <header className="topbar">
           <div>
             <p className="eyebrow">Acinetobacter program</p>
-            <h1>Candidate ranking</h1>
+            <h1>Antibiotic evidence explorer</h1>
           </div>
           <button className="icon-button" title="Refresh candidates" aria-label="Refresh candidates" onClick={load}>
             <RefreshCw size={18} />
           </button>
         </header>
 
+        <Explorer />
         <section className="metrics" aria-label="Program summary">
           <div><span>Ranked candidates</span><strong>{compounds.length}</strong></div>
           <div><span>Awaiting validation</span><strong>{compounds.filter((item) => item.status !== "validated").length}</strong></div>
@@ -206,9 +240,17 @@ export default function App() {
         <section className="evidence-grid" aria-label="Scientific provenance">
           <div className="evidence-panel" id="datasets">
             <div className="panel-heading"><Database size={17} /><div><h2>Datasets</h2><p>Immutable source manifests</p></div></div>
+            <details className="model-summary"><summary>Curator tools: refresh public evidence</summary>
+              <strong>Live ChEMBL evidence</strong>
+              <span>Fetch up to 1,000 published A. baumannii MIC records. Downloads can take several minutes.</span>
+              <label>API write key (if configured)<input type="password" autoComplete="off" value={apiKey} onChange={(event) => setApiKey(event.target.value)} /></label>
+              <button onClick={startSync} disabled={syncing}>{syncing ? "Syncing ChEMBL…" : "Sync from ChEMBL"}</button>
+              {syncJob && <span role="status">Last sync: {syncJob.status} · {new Date(`${syncJob.created_at}Z`).toLocaleString()}</span>}
+              {(syncError || syncJob?.error) && <span role="alert">{syncError || syncJob?.error}</span>}
+            </details>
             {datasets.length === 0 ? <div className="compact-empty">No dataset imported</div> : datasets.map((dataset) => (
               <div className="evidence-row" key={dataset.id}>
-                <div><a href={dataset.source_url} target="_blank" rel="noreferrer"><strong>{dataset.name}</strong></a><span>{dataset.record_count} records · {dataset.license}</span></div>
+                <div><a href={dataset.source_url} target="_blank" rel="noreferrer"><strong>{dataset.name}</strong></a><span>{dataset.record_count} source records · {dataset.license} · imported {new Date(dataset.imported_at + "Z").toLocaleDateString()}</span></div>
                 <code title={dataset.sha256}>{dataset.sha256.slice(0, 12)}</code>
               </div>
             ))}
@@ -293,6 +335,7 @@ export default function App() {
               </div>
               <dl>
                 <div><dt>InChIKey</dt><dd>{selected.inchikey}</dd></div>
+                <div><dt>Public report</dt><dd><a href={`?compound=${encodeURIComponent(selected.inchikey)}#explorer`}>Open shareable evidence report</a></dd></div>
                 <div><dt>Molecular weight</dt><dd>{selected.molecular_weight.toFixed(2)} g/mol</dd></div>
                 <div><dt>Canonical SMILES</dt><dd><code>{selected.canonical_smiles}</code></dd></div>
                 <div><dt>Source</dt><dd>{selected.evidence_source}</dd></div>
